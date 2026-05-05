@@ -1,0 +1,95 @@
+services:
+  ingest:
+    profiles:
+      - jobs
+    build:
+      context: .
+      dockerfile: dockerfiles/ingest.Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+    depends_on:
+      - kafka
+
+  preprocess:
+    profiles:
+      - jobs
+    build:
+      context: .
+      dockerfile: dockerfiles/preprocess.Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      PROCESSED_DIR: /workspace/processed
+    depends_on:
+      - kafka
+
+  train:
+    profiles:
+      - jobs
+    build:
+      context: .
+      dockerfile: dockerfiles/train.Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      PROCESSED_DIR: /workspace/processed
+      MODELS_DIR: /workspace/models
+      DATABASE_URL: postgresql+psycopg2://cloudml:cloudml@postgres:5432/cloudml
+    depends_on:
+      - kafka
+      - postgres
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: cloudml-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_INIT_LIMIT: 5
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: cloudml-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: cloudml-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: cloudml
+      POSTGRES_USER: cloudml
+      POSTGRES_PASSWORD: cloudml
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U cloudml" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
