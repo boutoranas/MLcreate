@@ -1,0 +1,13 @@
+{
+  "job_id": "b5055f47-6f94-4fe2-bbe7-77efe5a2b523",
+  "processed_path": "/workspace/processed/b5055f47-6f94-4fe2-bbe7-77efe5a2b523.parquet",
+  "n_rows": 20,
+  "features": [
+    "ID",
+    "Income_k",
+    "Debt_Ratio",
+    "Credit_Score",
+    "Age"
+  ],
+  "timestamp": "2026-05-06T07:42:07.872189Z"
+}

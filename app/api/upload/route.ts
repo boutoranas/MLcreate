@@ -1,5 +1,6 @@
-import { spawn } from "node:child_process";
 import path from "node:path";
+import fs from "node:fs/promises";
+import { v4 as uuidv4 } from "uuid";
 
 export const runtime = "nodejs";
 
@@ -11,46 +12,53 @@ type PythonResult = {
   raw_preview: string;
 };
 
-function runPythonBackend(payload: string): Promise<PythonResult> {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.join(
-      process.cwd(),
-      "backend",
-      "dummy_csv_backend.py",
-    );
-    const python = spawn("python3", [scriptPath]);
+async function publishUploadRequest(
+  csvPath: string,
+  filename: string
+): Promise<{ jobId: string; result: PythonResult }> {
+  const jobId = uuidv4();
+  const kafkaBootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
+  const relativeCsvPath = path.relative(process.cwd(), csvPath).replace(/\\/g, "/");
 
-    let stdout = "";
-    let stderr = "";
+  // Create message for ingest_consumer
+  const message = {
+    job_id: jobId,
+    csv_path: relativeCsvPath,
+    filename: filename,
+    timestamp: new Date().toISOString(),
+  };
 
-    python.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    python.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    python.on("error", (error) => {
-      reject(error);
-    });
-
-    python.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(stderr || `Python backend exited with code ${code}.`));
-        return;
-      }
-
-      try {
-        resolve(JSON.parse(stdout) as PythonResult);
-      } catch {
-        reject(new Error("Python backend returned invalid JSON."));
-      }
-    });
-
-    python.stdin.write(payload);
-    python.stdin.end();
+  const { Kafka } = await import("kafkajs");
+  const kafka = new Kafka({
+    clientId: "next-upload-api",
+    brokers: kafkaBootstrap.split(","),
   });
+  const producer = kafka.producer();
+  await producer.connect();
+  await producer.send({
+    topic: "csv_upload_requested",
+    messages: [{ key: jobId, value: JSON.stringify(message) }],
+  });
+  await producer.disconnect();
+
+  const messagesDir = path.join(process.cwd(), "messages");
+  await fs.mkdir(messagesDir, { recursive: true });
+  await fs.writeFile(
+    path.join(messagesDir, `upload_request_${jobId}.json`),
+    JSON.stringify(message, null, 2),
+    "utf8"
+  );
+
+  // Return response indicating async processing
+  const result: PythonResult = {
+    row_count: 0,
+    column_count: 0,
+    columns: [],
+    preview: [],
+    raw_preview: `Job queued: ${jobId}`,
+  };
+
+  return { jobId, result };
 }
 
 export async function POST(request: Request) {
@@ -63,23 +71,28 @@ export async function POST(request: Request) {
 
   if (!file.name.toLowerCase().endsWith(".csv")) {
     return Response.json(
-      { error: "Only .csv files are supported for now." },
-      { status: 400 },
+      { error: "Only .csv files are supported." },
+      { status: 400 }
     );
   }
 
-  const text = await file.text();
+  const content = await file.text();
+
+  // Save CSV to disk
+  const tmpDir = path.join(process.cwd(), "data", "uploads");
+  await fs.mkdir(tmpDir, { recursive: true });
+  const timestamp = Date.now();
+  const savePath = path.join(tmpDir, `${timestamp}_${file.name}`);
+  await fs.writeFile(savePath, content, "utf8");
 
   try {
-    const result = await runPythonBackend(
-      JSON.stringify({
-        filename: file.name,
-        content: text,
-      }),
-    );
+    // Publish upload event to Kafka and return job id for status polling
+    const { jobId, result } = await publishUploadRequest(savePath, file.name);
 
     return Response.json({
-      backend: "python3",
+      job_id: jobId,
+      status: "queued",
+      backend: "kafka_async",
       filename: file.name,
       size: file.size,
       result,
@@ -88,9 +101,9 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          error instanceof Error ? error.message : "Python backend failed.",
+          error instanceof Error ? error.message : "Upload processing failed.",
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

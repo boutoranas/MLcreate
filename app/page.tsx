@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 type UploadResponse = {
+  job_id: string;
+  status: string;
   backend: string;
   filename: string;
   size: number;
@@ -15,11 +17,92 @@ type UploadResponse = {
   };
 };
 
+type JobStatusResponse = {
+  job_id: string;
+  status: "queued" | "ingested" | "preprocessed" | "training" | "completed";
+  artifacts: {
+    dataset_message: boolean;
+    preprocess_message: boolean;
+    train_message: boolean;
+    processed_file: boolean;
+    model_file: boolean;
+  };
+  result?: {
+    row_count?: number;
+    column_count?: number;
+    columns?: string[];
+    preview?: string[][] | any[];
+    raw_preview?: string;
+  } | null;
+};
+
 export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<UploadResponse | null>(null);
+  const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
+
+  useEffect(() => {
+    const jobId = response?.job_id;
+    if (!jobId) {
+      return;
+    }
+
+    let active = true;
+    const poll = async () => {
+      try {
+        const statusResponse = await fetch(`/api/job-status/${jobId}`);
+        if (!statusResponse.ok) {
+          return;
+        }
+        const statusData = (await statusResponse.json()) as JobStatusResponse;
+        if (!active) {
+          return;
+        }
+        setJobStatus(statusData);
+
+        // If the status response included a parsed preview/result, merge it
+        // into the upload `response` so the UI shows columns/preview.
+        if (statusData.result) {
+          setResponse((prev) => {
+            const resultPayload = {
+              row_count: statusData.result?.row_count ?? 0,
+              column_count: statusData.result?.column_count ?? 0,
+              columns: statusData.result?.columns ?? [],
+              preview: statusData.result?.preview ?? [],
+              raw_preview: statusData.result?.raw_preview ?? `Job queued: ${statusData.job_id}`,
+            };
+
+            if (prev) {
+              return { ...prev, result: resultPayload };
+            }
+
+            return {
+              job_id: statusData.job_id,
+              status: statusData.status,
+              backend: "kafka_async",
+              filename: "",
+              size: 0,
+              result: resultPayload,
+            } as UploadResponse;
+          });
+        }
+      } catch {
+        // Ignore transient polling failures and retry on next tick.
+      }
+    };
+
+    poll();
+    const interval = setInterval(() => {
+      void poll();
+    }, 2000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [response?.job_id]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,6 +115,7 @@ export default function Home() {
     setIsSubmitting(true);
     setError(null);
     setResponse(null);
+    setJobStatus(null);
 
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -47,7 +131,8 @@ export default function Home() {
         | { error?: string };
 
       if (!uploadResponse.ok) {
-        throw new Error(data.error ?? "Upload failed.");
+        const message = "error" in data ? data.error : undefined;
+        throw new Error(message ?? "Upload failed.");
       }
 
       setResponse(data as UploadResponse);
@@ -131,6 +216,14 @@ export default function Home() {
             {response ? (
               <div className="mt-6 space-y-5">
                 <dl className="grid gap-3 rounded-2xl bg-white/5 p-4 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-400">Job ID</dt>
+                    <dd className="mt-1 text-white">{response.job_id}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Pipeline status</dt>
+                    <dd className="mt-1 text-white">{jobStatus?.status ?? response.status}</dd>
+                  </div>
                   <div>
                     <dt className="text-slate-400">Backend</dt>
                     <dd className="mt-1 text-white">{response.backend}</dd>

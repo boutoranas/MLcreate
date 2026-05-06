@@ -1,9 +1,0 @@
-{
-  "job_id": "a70927f1-10c0-40a7-b523-cb5fb7129ea2",
-  "model_path": "C:\\Users\\DELL 7430\\Documents\\MLcreate\\models\\a70927f1-10c0-40a7-b523-cb5fb7129ea2.pkl",
-  "metrics": {
-    "accuracy": 1.0,
-    "n_samples": 4
-  },
-  "timestamp": "2026-05-04T20:34:07.151887Z"
-}
