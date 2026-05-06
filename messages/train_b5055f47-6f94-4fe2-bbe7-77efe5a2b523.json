@@ -1,9 +1,0 @@
-{
-  "job_id": "b5055f47-6f94-4fe2-bbe7-77efe5a2b523",
-  "model_path": "/workspace/models/b5055f47-6f94-4fe2-bbe7-77efe5a2b523.pkl",
-  "metrics": {
-    "accuracy": 0.5,
-    "n_samples": 4
-  },
-  "timestamp": "2026-05-06T07:42:12.147237Z"
-}

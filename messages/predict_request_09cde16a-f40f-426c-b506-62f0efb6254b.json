@@ -1,0 +1,7 @@
+{
+  "predict_id": "09cde16a-f40f-426c-b506-62f0efb6254b",
+  "csv_path": "/workspace/data/predictions/predict_1778083231887_test_predict.csv",
+  "model_id": "4a153f76-432e-4159-bd79-66444413517a.pkl.spark",
+  "model_type": "regression",
+  "timestamp": "2026-05-06T16:00:31.894Z"
+}

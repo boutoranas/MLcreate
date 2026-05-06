@@ -82,6 +82,7 @@ def main():
         msg = json.load(f)
     csv_path = msg.get("csv_path")
     job_id = msg.get("job_id")
+    task_type = (msg.get("task_type") or msg.get("model_type") or "classification").lower()
     processed_dir = os.environ.get("PROCESSED_DIR", os.path.join(os.getcwd(), "processed"))
     os.makedirs(processed_dir, exist_ok=True)
     out_path = os.path.join(processed_dir, f"{job_id}.parquet")
@@ -93,6 +94,8 @@ def main():
         "processed_path": out_path,
         "n_rows": n_rows,
         "features": features,
+        "task_type": task_type,
+        "model_type": task_type,
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
     publish_message(done_msg)

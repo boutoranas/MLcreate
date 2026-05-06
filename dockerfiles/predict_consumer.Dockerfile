@@ -7,13 +7,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /workspace
 
-# Install Java for Spark
+# Install Java for Spark (needed for loading Spark MLlib models)
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	openjdk-17-jdk-headless \
 	&& rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies including PySpark XGBoost for distributed training.
-# The extra retries/timeouts help avoid rebuilding from scratch on transient network drops.
+# Install Python dependencies including PySpark for model inference.
 RUN pip install --upgrade pip && pip install \
 	--retries 10 \
 	--timeout 120 \
@@ -26,8 +25,10 @@ RUN pip install --upgrade pip && pip install \
 	joblib==1.2.0 \
 	pandas==2.0.3 \
 	pyarrow==15.0.2 \
-	kafka-python==2.0.2
+	kafka-python==2.0.2 \
+	numpy==1.24.3 \
+	scipy==1.11.4
 
 COPY . ./
 
-ENTRYPOINT ["python", "consumers/train_consumer.py"]
+ENTRYPOINT ["python", "consumers/predict_consumer.py"]

@@ -14,7 +14,8 @@ type PythonResult = {
 
 async function publishUploadRequest(
   csvPath: string,
-  filename: string
+  filename: string,
+  taskType: string
 ): Promise<{ jobId: string; result: PythonResult }> {
   const jobId = uuidv4();
   const kafkaBootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
@@ -25,6 +26,8 @@ async function publishUploadRequest(
     job_id: jobId,
     csv_path: relativeCsvPath,
     filename: filename,
+    task_type: taskType,
+    model_type: taskType,
     timestamp: new Date().toISOString(),
   };
 
@@ -64,6 +67,11 @@ async function publishUploadRequest(
 export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file");
+  const taskTypeRaw = formData.get("task_type");
+  const taskType =
+    typeof taskTypeRaw === "string" && taskTypeRaw.toLowerCase() === "regression"
+      ? "regression"
+      : "classification";
 
   if (!(file instanceof File)) {
     return Response.json({ error: "Missing CSV file." }, { status: 400 });
@@ -87,7 +95,7 @@ export async function POST(request: Request) {
 
   try {
     // Publish upload event to Kafka and return job id for status polling
-    const { jobId, result } = await publishUploadRequest(savePath, file.name);
+    const { jobId, result } = await publishUploadRequest(savePath, file.name, taskType);
 
     return Response.json({
       job_id: jobId,
@@ -95,6 +103,7 @@ export async function POST(request: Request) {
       backend: "kafka_async",
       filename: file.name,
       size: file.size,
+      task_type: taskType,
       result,
     });
   } catch (error) {

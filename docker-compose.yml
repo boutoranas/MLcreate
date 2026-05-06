@@ -90,6 +90,20 @@ services:
       - postgres
     restart: unless-stopped
 
+  predict_consumer:
+    build:
+      context: .
+      dockerfile: dockerfiles/predict_consumer.Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      MODELS_DIR: /workspace/models
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: cloudml-zookeeper

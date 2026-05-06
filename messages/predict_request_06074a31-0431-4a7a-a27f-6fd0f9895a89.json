@@ -1,0 +1,7 @@
+{
+  "predict_id": "06074a31-0431-4a7a-a27f-6fd0f9895a89",
+  "csv_path": "C:/Users/DELL 7430/Documents/MLcreate/data/predictions/predict_1778082378229_test_predict.csv",
+  "model_id": "4a153f76-432e-4159-bd79-66444413517a.pkl.spark",
+  "model_type": "regression",
+  "timestamp": "2026-05-06T15:46:18.235Z"
+}
