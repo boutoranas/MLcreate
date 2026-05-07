@@ -83,8 +83,14 @@ def main():
 
     csv_path = os.path.abspath(csv_path) if csv_path else csv_path
     if csv_path and not os.path.exists(csv_path) and s3_utils and s3_utils.enabled():
-        # Use explicit key if present, otherwise reconstruct from job_id + filename
-        key = s3_csv_key or f"uploads/{job_id}/{os.path.basename(csv_path)}"
+        if s3_csv_key:
+            key = s3_csv_key
+        else:
+            import re
+            # Local filename has a timestamp prefix (e.g. "1778177220241_file.csv")
+            # but S3 stores the original filename without it
+            basename = re.sub(r'^\d+_', '', os.path.basename(csv_path))
+            key = f"uploads/{job_id}/{basename}"
         print(f"[Preprocess] {csv_path} not found locally; downloading from S3 key {key}...")
         os.makedirs(os.path.dirname(csv_path), exist_ok=True)
         s3_utils.download_file(key, csv_path)
