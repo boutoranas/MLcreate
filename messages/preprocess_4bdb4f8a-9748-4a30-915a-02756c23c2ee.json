@@ -1,0 +1,13 @@
+{
+  "job_id": "4bdb4f8a-9748-4a30-915a-02756c23c2ee",
+  "processed_path": "/workspace/processed/4bdb4f8a-9748-4a30-915a-02756c23c2ee.parquet",
+  "s3_processed_path": "s3://mlcreate/processed/4bdb4f8a-9748-4a30-915a-02756c23c2ee.parquet",
+  "n_rows": 25,
+  "features": [
+    "sqft",
+    "age"
+  ],
+  "task_type": "regression",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T18:17:15.075281Z"
+}

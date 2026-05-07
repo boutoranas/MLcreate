@@ -66,8 +66,8 @@ def main():
                         json.dump(msg, f, indent=2)
 
                     handler_path = os.path.join(os.getcwd(), 'functions', 'predict', 'handler.py')
-                    print(f"[Predict] Running: python {handler_path} {csv_path} {model_id} {model_type} {s3_csv_key}")
-                    subprocess.check_call(['python', handler_path, csv_path, model_id, model_type, s3_csv_key])
+                    print(f"[Predict] Running: python {handler_path} {csv_path} {model_id} {model_type} {s3_csv_key} {predict_id}")
+                    subprocess.check_call(['python', handler_path, csv_path, model_id, model_type, s3_csv_key, predict_id])
 
                     sqs_utils.delete_message(queue_url, receipt)
                     print(f"[Predict] ✓ Predict job {predict_id} completed")

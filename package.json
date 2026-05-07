@@ -11,6 +11,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1044.0",
     "@aws-sdk/client-sqs": "^3.1044.0",
+    "@aws-sdk/s3-request-presigner": "^3.1044.0",
     "@clerk/nextjs": "^7.3.2",
     "@types/pg": "^8.20.0",
     "kafkajs": "^2.2.4",

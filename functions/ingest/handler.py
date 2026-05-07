@@ -109,6 +109,7 @@ def main():
         "job_id": job_id,
         "uploader": os.environ.get("USER", "local"),
         "csv_path": csv_path,
+        "s3_csv_key": s3_csv_key,
         "task_type": task_type,
         "model_type": task_type,
         "timestamp": datetime.utcnow().isoformat() + "Z",

@@ -1,0 +1,14 @@
+{
+  "job_id": "f341d2f8-b020-43c6-81f2-d35cd0fc7794",
+  "uploader": "local",
+  "csv_path": "/workspace/data/uploads/1778177071219_housing_regression_data.csv",
+  "s3_csv_key": null,
+  "task_type": "regression",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T18:04:28.596686Z",
+  "row_count": 0,
+  "column_count": 0,
+  "columns": [],
+  "preview": [],
+  "raw_preview": "Job queued: f341d2f8-b020-43c6-81f2-d35cd0fc7794"
+}

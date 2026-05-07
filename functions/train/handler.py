@@ -358,7 +358,8 @@ def main():
     # Download processed Parquet from S3 if not available locally
     if not os.path.exists(processed_path) and s3_utils and s3_utils.enabled():
         print(f"[Train] {processed_path} not found locally; downloading from S3...")
-        s3_utils.download_file(f"processed/{job_id}.parquet", processed_path)
+        if not s3_utils.download_directory(f"processed/{job_id}.parquet", processed_path):
+            s3_utils.download_file(f"processed/{job_id}.parquet", processed_path)
 
     # Try distributed Spark training first; fall back to local if Spark unavailable
     result = None

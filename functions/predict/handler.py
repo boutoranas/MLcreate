@@ -240,11 +240,12 @@ def main():
     if len(sys.argv) < 3:
         print("Usage: python handler.py <csv_path> <model_id> [classification|regression]")
         sys.exit(1)
-    
+
     csv_path = sys.argv[1]
     model_id = sys.argv[2]
     model_type = sys.argv[3] if len(sys.argv) > 3 else "classification"
     s3_csv_key = sys.argv[4] if len(sys.argv) > 4 else None
+    predict_id = sys.argv[5] if len(sys.argv) > 5 else None
 
     # When uploaded via Vercel+S3, csv_path is empty — derive a local path from the S3 key
     if not csv_path and s3_csv_key:
@@ -258,38 +259,45 @@ def main():
     if not csv_path or not os.path.exists(csv_path):
         print(f"Error: CSV file not found: {csv_path}")
         sys.exit(1)
-    
+
     try:
         result = predict(csv_path, model_id, model_type)
-        
+
+        # Upload output CSV to S3 so the frontend can offer a download link
+        output_csv = result.get("output_csv")
+        if predict_id and output_csv and os.path.exists(output_csv) and s3_utils and s3_utils.enabled():
+            s3_key = f"predictions_output/{predict_id}.csv"
+            s3_utils.upload_file(output_csv, s3_key)
+            print(f"[Predict] Uploaded predictions to S3: {s3_key}")
+
         # Write results to messages directory
         out_dir = os.path.join(os.getcwd(), "messages")
         os.makedirs(out_dir, exist_ok=True)
-        
+
         result_msg = {
             "model_id": model_id,
             "csv_path": csv_path,
             "model_type": model_type,
             "timestamp": datetime.utcnow().isoformat() + 'Z',
-            "output_csv": result.get("output_csv"),
+            "output_csv": output_csv,
             "result": {
                 "n_rows": result.get("n_rows"),
                 "columns": result.get("columns"),
                 "prediction_mode": result.get("prediction_mode"),
-                "sample_predictions": result.get("predictions", [])[:5]  # First 5 for logging
+                "sample_predictions": result.get("predictions", [])[:5]
             }
         }
-        
+
         result_file = os.path.join(out_dir, f"predict_{model_id}_{int(datetime.now().timestamp())}.json")
         with open(result_file, "w") as f:
             json.dump(result_msg, f, indent=2)
         print(f"Wrote results to {result_file}")
-        
+
         # Print full results as JSON to stdout for API to capture
         print("\n=== PREDICTION_RESULTS_START ===")
         print(json.dumps(result, indent=2, default=str))
         print("=== PREDICTION_RESULTS_END ===")
-        
+
     except Exception as e:
         print(f"Prediction failed: {e}", file=sys.stderr)
         sys.exit(1)
