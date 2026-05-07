@@ -1,6 +1,6 @@
 """Ingest handler (OpenFaaS-style) - CLI helper for local testing.
 
-Usage (local): python handler.py <csv_path> [job_id]
+Usage (local): python handler.py <csv_path> [job_id] [task_type]
 Environment: KAFKA_BOOTSTRAP for kafka address
 """
 import os
@@ -40,10 +40,11 @@ def publish_message(message, topic="dataset_uploaded"):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python handler.py <csv_path> [job_id]")
+        print("Usage: python handler.py <csv_path> [job_id] [task_type]")
         sys.exit(1)
     csv_path = sys.argv[1]
     incoming_job_id = sys.argv[2] if len(sys.argv) > 2 else None
+    task_type = (sys.argv[3] if len(sys.argv) > 3 else os.environ.get("TASK_TYPE", "classification")).lower()
     # Convert to absolute path for unambiguous resolution
     csv_path = os.path.abspath(csv_path)
     job_id = incoming_job_id or str(uuid.uuid4())
@@ -100,6 +101,8 @@ def main():
         "job_id": job_id,
         "uploader": os.environ.get("USER", "local"),
         "csv_path": csv_path,
+        "task_type": task_type,
+        "model_type": task_type,
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "row_count": row_count,
         "column_count": len(columns),

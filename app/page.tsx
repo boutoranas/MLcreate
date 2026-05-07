@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { PredictCSV } from "./components/PredictCSV";
 
 type UploadResponse = {
   job_id: string;
@@ -42,6 +43,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<UploadResponse | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
+  const [taskType, setTaskType] = useState<string>('classification');
+
+  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setTaskType(event.target.value);
+  };
 
   useEffect(() => {
     const jobId = response?.job_id;
@@ -119,6 +125,7 @@ export default function Home() {
 
     const formData = new FormData();
     formData.append("file", selectedFile);
+    formData.append("task_type", taskType);
 
     try {
       const uploadResponse = await fetch("/api/upload", {
@@ -192,6 +199,25 @@ export default function Home() {
                 : "No file selected yet."}
             </div>
 
+            <div className="flex flex-col gap-2 w-64">
+              <label htmlFor="task-select" className="text-sm font-medium text-gray-700">
+                Task Type
+              </label>
+              <select
+                id="task-select"
+                value={taskType}
+                onChange={handleChange}
+                className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              >
+                <option value="classification">Classification</option>
+                <option value="regression">Regression</option>
+              </select>
+
+              <p className="mt-2 text-xs text-gray-500">
+                Selected mode: <span className="font-semibold text-blue-600 uppercase">{taskType}</span>
+              </p>
+            </div>
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -257,15 +283,6 @@ export default function Home() {
 
                 <div>
                   <h3 className="text-sm font-medium uppercase tracking-[0.2em] text-slate-400">
-                    Preview
-                  </h3>
-                  <pre className="mt-2 overflow-x-auto rounded-2xl bg-black/30 p-4 text-xs leading-6 text-lime-200">
-                    {JSON.stringify(response.result.preview, null, 2)}
-                  </pre>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium uppercase tracking-[0.2em] text-slate-400">
                     Raw snippet
                   </h3>
                   <pre className="mt-2 overflow-x-auto rounded-2xl bg-black/30 p-4 text-xs leading-6 text-slate-300">
@@ -280,6 +297,21 @@ export default function Home() {
             )}
           </div>
         </section>
+
+        <section className="rounded-[2rem] border border-blue-200/70 bg-white/90 p-8 shadow-[0_24px_80px_rgba(37,99,235,0.12)] backdrop-blur">
+          <p className="text-sm font-mono uppercase tracking-[0.3em] text-blue-700">
+            Make Predictions
+          </p>
+          <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight text-slate-950">
+            Use a trained model to make predictions.
+          </h2>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+            Upload a CSV file and specify a trained model ID to get predictions.
+            Supports both Spark MLlib and local scikit-learn models.
+          </p>
+        </section>
+
+        <PredictCSV />
       </div>
     </main>
   );

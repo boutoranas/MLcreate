@@ -8,6 +8,14 @@ import json
 from datetime import datetime
 import subprocess
 
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+try:
+    import s3_utils
+except ImportError:
+    s3_utils = None
+
 try:
     from kafka import KafkaProducer
 except Exception:
@@ -47,15 +55,13 @@ def publish_message(message, topic="preprocessing_done"):
 
 
 def read_parquet_metadata(out_path):
+    ignore_cols = {"label", "target", "prediction", "id"}
     try:
         import pandas as pd
 
         df_meta = pd.read_parquet(out_path)
         n_rows = int(len(df_meta))
-        if "label" in df_meta.columns:
-            features = [c for c in df_meta.columns if c != "label"]
-        else:
-            features = list(df_meta.columns)
+        features = [c for c in columns if c not in ignore_cols]
         return n_rows, features
     except Exception:
         try:
@@ -64,10 +70,7 @@ def read_parquet_metadata(out_path):
             table = pq.read_table(out_path)
             columns = table.column_names
             n_rows = int(table.num_rows)
-            if "label" in columns:
-                features = [c for c in columns if c != "label"]
-            else:
-                features = list(columns)
+            features = [c for c in columns if c not in ignore_cols]
             return n_rows, features
         except Exception:
             return None, None
@@ -82,17 +85,28 @@ def main():
         msg = json.load(f)
     csv_path = msg.get("csv_path")
     job_id = msg.get("job_id")
+    task_type = (msg.get("task_type") or msg.get("model_type") or "classification").lower()
     processed_dir = os.environ.get("PROCESSED_DIR", os.path.join(os.getcwd(), "processed"))
     os.makedirs(processed_dir, exist_ok=True)
     out_path = os.path.join(processed_dir, f"{job_id}.parquet")
     run_spark(csv_path, out_path)
     n_rows, features = read_parquet_metadata(out_path)
 
+    s3_processed_path = None
+    if s3_utils and s3_utils.enabled():
+        if os.path.isdir(out_path):
+            s3_processed_path = s3_utils.upload_directory(out_path, f"processed/{job_id}.parquet")
+        else:
+            s3_processed_path = s3_utils.upload_file(out_path, f"processed/{job_id}.parquet")
+
     done_msg = {
         "job_id": job_id,
         "processed_path": out_path,
+        "s3_processed_path": s3_processed_path,
         "n_rows": n_rows,
         "features": features,
+        "task_type": task_type,
+        "model_type": task_type,
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
     publish_message(done_msg)

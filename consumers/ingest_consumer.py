@@ -35,12 +35,13 @@ def main():
             msg = msg_record.value
             job_id = msg.get("job_id")
             csv_path = msg.get("csv_path")
+            task_type = msg.get("task_type") or msg.get("model_type") or "classification"
 
-            print(f"\n[Ingest] Received job {job_id}, csv_path={csv_path}")
+            print(f"\n[Ingest] Received job {job_id}, csv_path={csv_path}, task_type={task_type}")
 
             handler_path = os.path.join(os.getcwd(), "functions", "ingest", "handler.py")
-            print(f"[Ingest] Running: python {handler_path} {csv_path} {job_id}")
-            subprocess.check_call(["python", handler_path, csv_path, job_id])
+            print(f"[Ingest] Running: python {handler_path} {csv_path} {job_id} {task_type}")
+            subprocess.check_call(["python", handler_path, csv_path, job_id, task_type])
             print(f"[Ingest] ✓ Job {job_id} completed")
         except Exception:
             print("[Ingest] Error while processing message:")

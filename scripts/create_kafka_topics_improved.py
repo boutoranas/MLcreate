@@ -15,6 +15,7 @@ def main():
         NewTopic(name="dataset_uploaded", num_partitions=1, replication_factor=1),
         NewTopic(name="preprocessing_done", num_partitions=1, replication_factor=1),
         NewTopic(name="training_complete", num_partitions=1, replication_factor=1),
+        NewTopic(name="predict_requested", num_partitions=1, replication_factor=1),
     ]
     
     print(f"Creating Kafka topics on {bootstrap}")

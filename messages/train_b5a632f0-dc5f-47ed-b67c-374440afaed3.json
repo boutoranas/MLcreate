@@ -1,0 +1,14 @@
+{
+  "job_id": "b5a632f0-dc5f-47ed-b67c-374440afaed3",
+  "model_path": "/workspace/models/b5a632f0-dc5f-47ed-b67c-374440afaed3.pkl",
+  "s3_model_path": null,
+  "model_type": "regression",
+  "training_mode": "distributed_spark",
+  "metrics": {
+    "mse": 1751.0017175358564,
+    "rmse": 41.84497242842748,
+    "r2": 0.9274300626492551,
+    "n_samples": 6
+  },
+  "timestamp": "2026-05-07T09:58:57.522324Z"
+}
