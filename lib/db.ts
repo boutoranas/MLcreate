@@ -9,7 +9,7 @@ export function getPool(): Pool | null {
     // Strip SQLAlchemy dialect suffix so pg can parse it
     // e.g. postgresql+psycopg2://... → postgresql://...
     const connectionString = url.replace(/^postgresql\+[^:]+:\/\//, 'postgresql://');
-    pool = new Pool({ connectionString });
+    pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
   }
   return pool;
 }
