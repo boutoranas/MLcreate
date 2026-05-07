@@ -4,38 +4,25 @@ import json
 import subprocess
 import time
 import traceback
-import re
 from kafka import KafkaConsumer
 
 
-def fix_model_metadata_nan():
-    """Fix NaN values in all Spark model metadata files."""
+def delete_model_crc_files():
+    """Delete stale Hadoop CRC files from model directories to prevent cross-platform checksum errors."""
     models_dir = os.environ.get('MODELS_DIR', '/workspace/models')
     if not os.path.isdir(models_dir):
-        print(f"[Predict] Models directory not found: {models_dir}")
         return
-    
-    fixed_count = 0
-    for root, dirs, files in os.walk(models_dir):
-        for file in files:
-            if file == 'part-00000' and 'metadata' in root:
-                filepath = os.path.join(root, file)
+    count = 0
+    for root, _, files in os.walk(models_dir):
+        for f in files:
+            if f.startswith('.') and f.endswith('.crc'):
                 try:
-                    with open(filepath, 'r') as f:
-                        content = f.read()
-                    if ':NaN' in content or ':Infinity' in content or ':-Infinity' in content:
-                        fixed_content = re.sub(r':NaN\b', ':null', content)
-                        fixed_content = re.sub(r':Infinity\b', ':null', fixed_content)
-                        fixed_content = re.sub(r':-Infinity\b', ':null', fixed_content)
-                        with open(filepath, 'w') as f:
-                            f.write(fixed_content)
-                        print(f"[Predict] Fixed NaN in metadata: {filepath}")
-                        fixed_count += 1
+                    os.remove(os.path.join(root, f))
+                    count += 1
                 except Exception as e:
-                    print(f"[Predict] Warning: Could not fix metadata {filepath}: {e}")
-    
-    if fixed_count > 0:
-        print(f"[Predict] Fixed {fixed_count} metadata files")
+                    print(f"[Predict] Warning: Could not delete CRC file: {e}")
+    if count > 0:
+        print(f"[Predict] Deleted {count} stale CRC files")
 
 
 def wait_for_consumer(bootstrap: str, topic: str) -> KafkaConsumer:
@@ -56,8 +43,7 @@ def wait_for_consumer(bootstrap: str, topic: str) -> KafkaConsumer:
 
 
 def main():
-    # Fix model metadata files first
-    fix_model_metadata_nan()
+    delete_model_crc_files()
     
     bootstrap = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
     topic = "predict_requested"

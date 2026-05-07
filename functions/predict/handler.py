@@ -24,23 +24,6 @@ except Exception as e:
 import re
 
 
-def _fix_metadata_nan(metadata_path):
-    """Fix NaN values in Spark metadata JSON for Jackson parsing."""
-    try:
-        with open(metadata_path, 'r') as f:
-            content = f.read()
-        # Replace NaN and Infinity with null (JSON-compatible values)
-        fixed_content = re.sub(r':NaN\b', ':null', content)
-        fixed_content = re.sub(r':Infinity\b', ':null', fixed_content)
-        fixed_content = re.sub(r':-Infinity\b', ':null', fixed_content)
-        # Write back temporarily
-        with open(metadata_path, 'w') as f:
-            f.write(fixed_content)
-        return True
-    except Exception as e:
-        print(f"[Predict] Warning: Could not fix metadata JSON: {e}")
-        return False
-
 
 def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
     if not SPARK_AVAILABLE:
@@ -62,15 +45,30 @@ def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
         .config("spark.hadoop.mapreduce.fileoutputcommitter.marksuccessfuljobs", "false") \
         .getOrCreate()
         
-    spark.sparkContext._jsc.hadoopConfiguration().set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
-    spark.sparkContext._jsc.hadoopConfiguration().setBoolean("dfs.client.read.shortcircuit.skip.checksum", True)
-
     try:
-        # Read metadata to find the actual saved class
+        # Delete stale Hadoop CRC files so LocalFileSystem doesn't reject cross-platform checksums
+        for root, _, files in os.walk(spark_model_dir):
+            for f in files:
+                if f.endswith('.crc') or (f.startswith('.') and f.endswith('.crc')):
+                    os.remove(os.path.join(root, f))
+
+        # Read metadata to find the actual saved class.
+        # Use regex instead of json.load because the file may contain NaN (invalid JSON
+        # for Python, but valid for Spark's Jackson which XGBoost Spark relies on).
         metadata_file = os.path.join(spark_model_dir, "metadata", "part-00000")
         with open(metadata_file, "r") as f:
-            metadata = json.load(f)
-        class_name = metadata.get("class", "")
+            metadata_content = f.read()
+
+        # Repair damage from a previous fix that turned XGBoost's "missing":NaN into "missing":null,
+        # which XGBoost rejects at predict time. NaN is the XGBoost default and what Jackson expects.
+        if re.search(r'"missing"\s*:\s*null', metadata_content):
+            metadata_content = re.sub(r'"missing"\s*:\s*null', '"missing":NaN', metadata_content)
+            with open(metadata_file, "w") as f:
+                f.write(metadata_content)
+            print("[Predict] Restored missing=NaN in metadata")
+
+        class_match = re.search(r'"class"\s*:\s*"([^"]+)"', metadata_content)
+        class_name = class_match.group(1) if class_match else ""
         print(f"[Predict] Model class: {class_name}")
 
         # Load using the correct class
@@ -88,30 +86,18 @@ def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
         df = spark.read.option("header", "true").option("inferSchema", "true").csv(csv_path)
         print(f"[Predict] Loaded CSV with {df.count()} rows")
         
-        # Load metadata to get the correct feature columns
-        meta_file = os.path.join(os.path.dirname(spark_model_dir), f"{os.path.basename(spark_model_dir).replace('.pkl.spark', '')}.pkl.meta")
-        if os.path.exists(meta_file):
-            with open(meta_file, "r") as f:
-                meta = json.load(f)
-                if "feature_cols" in meta:
-                    feature_cols = meta["feature_cols"]
-                    print(f"[Predict] Using feature columns from metadata: {feature_cols}")
-                else:
-                    # Fallback: ignore label/target/prediction columns
-                    ignore_cols = {"label", "target", "prediction"}
-                    feature_cols = [c for c in df.columns if c.lower() not in ignore_cols]
-                    print(f"[Predict] Using fallback feature columns: {feature_cols}")
-        else:
-            # Fallback: ignore label/target/prediction columns
-            ignore_cols = {"label", "target", "prediction"}
-            feature_cols = [c for c in df.columns if c.lower() not in ignore_cols]
-            print(f"[Predict] Using fallback feature columns: {feature_cols}")
+        ignore_cols = {"label", "target", "prediction", "id"}
+        feature_cols = [c for c in df.columns if c.lower() not in ignore_cols]
+        print(f"[Predict] Assembling features from columns: {feature_cols}")
 
         assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
         df = assembler.transform(df)
 
         predictions = model.transform(df)
         pred_pd = predictions.toPandas()
+
+        drop_cols = [c for c in pred_pd.columns if c in {"features", "rawPrediction", "probability"}]
+        pred_pd = pred_pd.drop(columns=drop_cols)
 
         predictions_dir = os.environ.get('PREDICTIONS_OUTPUT_DIR', os.path.join(os.getcwd(), 'data', 'predictions_output'))
         os.makedirs(predictions_dir, exist_ok=True)
@@ -158,7 +144,7 @@ def predict_with_joblib(csv_path, model_path, model_type="classification"):
     # Write predictions to CSV output file
     predictions_dir = os.environ.get('PREDICTIONS_OUTPUT_DIR', os.path.join(os.getcwd(), 'data', 'predictions_output'))
     os.makedirs(predictions_dir, exist_ok=True)
-    output_csv = os.path.join(predictions_dir, f"predictions_{datetime.now().strftime('%s')}.csv")
+    output_csv = os.path.join(predictions_dir, f"predictions_{int(datetime.now().timestamp())}.csv")
     df.to_csv(output_csv, index=False)
     print(f"[Predict] Wrote predictions to {output_csv}")
     
@@ -263,7 +249,7 @@ def main():
             }
         }
         
-        result_file = os.path.join(out_dir, f"predict_{model_id}_{datetime.now().strftime('%s')}.json")
+        result_file = os.path.join(out_dir, f"predict_{model_id}_{int(datetime.now().timestamp())}.json")
         with open(result_file, "w") as f:
             json.dump(result_msg, f, indent=2)
         print(f"Wrote results to {result_file}")
