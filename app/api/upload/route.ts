@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { getPool } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,8 @@ type PythonResult = {
 async function publishUploadRequest(
   csvPath: string,
   filename: string,
-  taskType: string
+  taskType: string,
+  modelName: string
 ): Promise<{ jobId: string; result: PythonResult }> {
   const jobId = uuidv4();
   const queueUrl = process.env.SQS_QUEUE_CSV_UPLOAD_REQUESTED ?? "cloudml-csv-upload-requested";
@@ -26,6 +28,7 @@ async function publishUploadRequest(
 
   const message = {
     job_id: jobId,
+    model_name: modelName,
     csv_path: relativeCsvPath,
     filename,
     task_type: taskType,
@@ -61,6 +64,8 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file");
   const taskTypeRaw = formData.get("task_type");
+  const modelNameRaw = formData.get("model_name");
+
   const taskType =
     typeof taskTypeRaw === "string" && taskTypeRaw.toLowerCase() === "regression"
       ? "regression"
@@ -74,6 +79,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Only .csv files are supported." }, { status: 400 });
   }
 
+  const modelName =
+    typeof modelNameRaw === "string" && modelNameRaw.trim()
+      ? modelNameRaw.trim()
+      : file.name.replace(/\.csv$/i, "");
+
   const content = await file.text();
 
   const tmpDir = path.join(process.cwd(), "data", "uploads");
@@ -83,10 +93,21 @@ export async function POST(request: Request) {
   await fs.writeFile(savePath, content, "utf8");
 
   try {
-    const { jobId, result } = await publishUploadRequest(savePath, file.name, taskType);
+    const { jobId, result } = await publishUploadRequest(savePath, file.name, taskType, modelName);
+
+    const pool = getPool();
+    if (pool) {
+      await pool.query(
+        `INSERT INTO jobs (job_id, model_name, task_type, status, created_at)
+         VALUES ($1, $2, $3, 'queued', now())
+         ON CONFLICT (job_id) DO UPDATE SET status = 'queued'`,
+        [jobId, modelName, taskType]
+      );
+    }
 
     return Response.json({
       job_id: jobId,
+      model_name: modelName,
       status: "queued",
       backend: "sqs_async",
       filename: file.name,
