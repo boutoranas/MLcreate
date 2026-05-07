@@ -3,9 +3,13 @@ import { Pool } from 'pg';
 let pool: Pool | null = null;
 
 export function getPool(): Pool | null {
-  if (!process.env.DATABASE_URL) return null;
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
   if (!pool) {
-    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    // Strip SQLAlchemy dialect suffix so pg can parse it
+    // e.g. postgresql+psycopg2://... → postgresql://...
+    const connectionString = url.replace(/^postgresql\+[^:]+:\/\//, 'postgresql://');
+    pool = new Pool({ connectionString });
   }
   return pool;
 }

@@ -1,1 +1,0 @@
-{"model_type": "spark_mllib", "spark_path": "/workspace/models/967a26a3-2a5a-4db2-8d60-4945e858b1a4.pkl.spark", "feature_cols": ["sqft", "age"], "task_type": "regression"}

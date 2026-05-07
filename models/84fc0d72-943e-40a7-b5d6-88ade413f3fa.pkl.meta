@@ -1,0 +1,1 @@
+{"model_type": "spark_mllib", "spark_path": "/workspace/models/84fc0d72-943e-40a7-b5d6-88ade413f3fa.pkl.spark", "feature_cols": ["ID", "Income_k", "Debt_Ratio", "Credit_Score", "Age"], "task_type": "classification"}

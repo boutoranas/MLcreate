@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { UserButton, SignOutButton, useUser, useAuth } from "@clerk/nextjs";
 
 type Model = {
   job_id: string;
@@ -12,26 +13,31 @@ type Model = {
 };
 
 export function Sidebar() {
+  const { isSignedIn } = useAuth();
+  const { user } = useUser();
   const [models, setModels] = useState<Model[]>([]);
   const pathname = usePathname();
 
-  const refresh = () => {
+  useEffect(() => {
+    if (!isSignedIn) return;
     fetch("/api/models")
       .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setModels(data);
-      })
+      .then((data) => { if (Array.isArray(data)) setModels(data); })
       .catch(() => {});
-  };
+  }, [pathname, isSignedIn]);
 
   useEffect(() => {
-    refresh();
-  }, [pathname]);
-
-  useEffect(() => {
-    const interval = setInterval(refresh, 15000);
+    if (!isSignedIn) return;
+    const interval = setInterval(() => {
+      fetch("/api/models")
+        .then((r) => r.json())
+        .then((data) => { if (Array.isArray(data)) setModels(data); })
+        .catch(() => {});
+    }, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isSignedIn]);
+
+  if (!isSignedIn) return null;
 
   return (
     <aside className="w-56 shrink-0 h-screen bg-slate-950 text-white flex flex-col border-r border-slate-800 overflow-hidden">
@@ -53,36 +59,49 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-        Your Models
-      </div>
+      {models.length > 0 && (
+        <>
+          <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            Your Models
+          </div>
+          <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5">
+            {models.map((model) => {
+              const active = pathname === `/model/${model.job_id}`;
+              return (
+                <Link
+                  key={model.job_id}
+                  href={`/model/${model.job_id}`}
+                  className={`block rounded-lg px-3 py-2 transition-colors ${
+                    active ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/8 hover:text-white"
+                  }`}
+                >
+                  <div className="text-sm font-medium truncate">
+                    {model.model_name ?? "Unnamed"}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-slate-400 truncate">
+                    {model.task_type ?? "—"} &middot;{" "}
+                    {new Date(model.created_at).toLocaleDateString()}
+                  </div>
+                </Link>
+              );
+            })}
+          </nav>
+        </>
+      )}
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5">
-        {models.length === 0 ? (
-          <p className="px-3 py-2 text-xs text-slate-500 italic">No completed models yet.</p>
-        ) : (
-          models.map((model) => {
-            const active = pathname === `/model/${model.job_id}`;
-            return (
-              <Link
-                key={model.job_id}
-                href={`/model/${model.job_id}`}
-                className={`block rounded-lg px-3 py-2 transition-colors ${
-                  active ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/8 hover:text-white"
-                }`}
-              >
-                <div className="text-sm font-medium truncate">
-                  {model.model_name ?? "Unnamed"}
-                </div>
-                <div className="mt-0.5 text-[11px] text-slate-400 truncate">
-                  {model.task_type ?? "—"} &middot;{" "}
-                  {new Date(model.created_at).toLocaleDateString()}
-                </div>
-              </Link>
-            );
-          })
-        )}
-      </nav>
+      <div className="mt-auto px-3 pb-3 pt-3 border-t border-slate-800 space-y-4">
+        <div className="flex items-center gap-3 px-1">
+          <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
+          <span className="text-sm text-slate-300 truncate">
+            {user?.username ?? user?.emailAddresses[0]?.emailAddress ?? ""}
+          </span>
+        </div>
+        <SignOutButton>
+          <button className="w-full flex items-center rounded-lg px-3 py-2 text-sm font-medium text-red-400 bg-red-950/50 hover:bg-red-900/60 transition-colors">
+            Log out
+          </button>
+        </SignOutButton>
+      </div>
     </aside>
   );
 }

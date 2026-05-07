@@ -1,0 +1,9 @@
+{
+  "job_id": "84fc0d72-943e-40a7-b5d6-88ade413f3fa",
+  "model_name": "somethingefef",
+  "csv_path": "data/uploads/1778168008973_example_dataset_training.csv",
+  "filename": "example_dataset_training.csv",
+  "task_type": "classification",
+  "model_type": "classification",
+  "timestamp": "2026-05-07T15:33:28.975Z"
+}
