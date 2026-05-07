@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Sidebar } from "./components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "ML Create CSV Upload",
-  description: "Minimal CSV upload prototype with a dummy Python backend",
+  title: "MLcreate",
+  description: "Train and deploy machine learning models on your CSV data",
 };
 
 export default function RootLayout({
@@ -13,7 +14,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="h-full flex overflow-hidden bg-slate-50">
+        <Sidebar />
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+      </body>
     </html>
   );
 }
