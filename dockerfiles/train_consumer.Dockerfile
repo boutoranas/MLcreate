@@ -25,7 +25,7 @@ RUN pip install --upgrade pip && pip install \
 	psycopg2-binary==2.9.6 \
 	joblib==1.2.0 \
 	pandas==2.0.3 \
-	pyarrow==15.0.2 \
+	pyarrow==12.0.1 \
 	boto3==1.34.0
 
 COPY . ./
