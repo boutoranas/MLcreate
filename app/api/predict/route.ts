@@ -48,13 +48,15 @@ async function publishPredictRequest(
 		MessageBody: JSON.stringify(message),
 	}));
 
-	const messagesDir = path.join(process.cwd(), "messages");
-	await fs.mkdir(messagesDir, { recursive: true });
-	await fs.writeFile(
-		path.join(messagesDir, `predict_request_${predictId}.json`),
-		JSON.stringify(message, null, 2),
-		"utf8"
-	);
+	try {
+		const messagesDir = path.join(process.cwd(), "messages");
+		await fs.mkdir(messagesDir, { recursive: true });
+		await fs.writeFile(
+			path.join(messagesDir, `predict_request_${predictId}.json`),
+			JSON.stringify(message, null, 2),
+			"utf8"
+		);
+	} catch { /* read-only filesystem on Vercel */ }
 
 	return { predictId };
 }
