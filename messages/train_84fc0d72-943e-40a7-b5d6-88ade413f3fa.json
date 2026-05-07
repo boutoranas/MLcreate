@@ -1,0 +1,12 @@
+{
+  "job_id": "84fc0d72-943e-40a7-b5d6-88ade413f3fa",
+  "model_path": "/workspace/models/84fc0d72-943e-40a7-b5d6-88ade413f3fa.pkl",
+  "s3_model_path": "s3://mlcreate/models/84fc0d72-943e-40a7-b5d6-88ade413f3fa.pkl.spark",
+  "model_type": "classification",
+  "training_mode": "distributed_spark",
+  "metrics": {
+    "accuracy": 1.0,
+    "n_samples": 5
+  },
+  "timestamp": "2026-05-07T15:34:15.056804Z"
+}

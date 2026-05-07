@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Sidebar } from "./components/Sidebar";
 
 export const metadata: Metadata = {
@@ -13,13 +14,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="h-full flex overflow-hidden bg-slate-50">
-        <Sidebar />
-        <div className="flex-1 overflow-y-auto">
-          {children}
-        </div>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className="h-full antialiased">
+        <body className="h-full flex overflow-hidden bg-slate-50">
+          <Sidebar />
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

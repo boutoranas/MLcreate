@@ -18,6 +18,11 @@ try:
 except ImportError:
     sqs_utils = None
 
+try:
+    import s3_utils
+except ImportError:
+    s3_utils = None
+
 
 def publish_message(message, queue_env="SQS_QUEUE_DATASET_UPLOADED"):
     out_dir = os.path.join(os.getcwd(), "messages")
@@ -43,8 +48,13 @@ def main():
     csv_path = sys.argv[1]
     incoming_job_id = sys.argv[2] if len(sys.argv) > 2 else None
     task_type = (sys.argv[3] if len(sys.argv) > 3 else os.environ.get("TASK_TYPE", "classification")).lower()
+    s3_csv_key = sys.argv[4] if len(sys.argv) > 4 else None
     # Convert to absolute path for unambiguous resolution
     csv_path = os.path.abspath(csv_path)
+
+    if not os.path.exists(csv_path) and s3_csv_key and s3_utils and s3_utils.enabled():
+        print(f"[Ingest] {csv_path} not found locally; downloading from S3 key {s3_csv_key}...")
+        s3_utils.download_file(s3_csv_key, csv_path)
     job_id = incoming_job_id or str(uuid.uuid4())
 
     # Try to collect a small preview and column info for the UI.

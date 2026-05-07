@@ -46,7 +46,7 @@ services:
       KAFKA_BOOTSTRAP: kafka:29092
       PROCESSED_DIR: /workspace/processed
       MODELS_DIR: /workspace/models
-      DATABASE_URL: postgresql+psycopg2://cloudml:cloudml@postgres:5432/cloudml
+      DATABASE_URL: ${DATABASE_URL:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
@@ -54,7 +54,6 @@ services:
       S3_BUCKET: ${S3_BUCKET:-}
     depends_on:
       - kafka
-      - postgres
 
   preprocess_consumer:
     build:
@@ -100,7 +99,7 @@ services:
     environment:
       PROCESSED_DIR: /workspace/processed
       MODELS_DIR: /workspace/models
-      DATABASE_URL: postgresql+psycopg2://cloudml:cloudml@postgres:5432/cloudml
+      DATABASE_URL: ${DATABASE_URL:-}
       SQS_QUEUE_PREPROCESSING_DONE: ${SQS_QUEUE_PREPROCESSING_DONE:-cloudml-preprocessing-done}
       SQS_QUEUE_TRAINING_COMPLETE: ${SQS_QUEUE_TRAINING_COMPLETE:-cloudml-training-complete}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
@@ -108,8 +107,6 @@ services:
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-}
-    depends_on:
-      - postgres
     restart: unless-stopped
 
   predict_consumer:

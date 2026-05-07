@@ -1,3 +1,4 @@
+import { auth } from '@clerk/nextjs/server';
 import { getPool } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -6,19 +7,20 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { id } = await params;
   const pool = getPool();
-  if (!pool) {
-    return Response.json({ error: 'Database not configured' }, { status: 503 });
-  }
+  if (!pool) return Response.json({ error: 'Database not configured' }, { status: 503 });
 
   try {
     const result = await pool.query(
       `SELECT j.job_id, j.model_name, j.task_type, j.created_at, m.model_path
        FROM jobs j
        INNER JOIN models m ON j.job_id = m.job_id
-       WHERE j.job_id = $1`,
-      [id]
+       WHERE j.job_id = $1 AND j.user_id = $2`,
+      [id, userId]
     );
 
     if (result.rows.length === 0) {

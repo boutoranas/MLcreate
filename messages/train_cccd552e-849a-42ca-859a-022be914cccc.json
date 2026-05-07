@@ -1,0 +1,14 @@
+{
+  "job_id": "cccd552e-849a-42ca-859a-022be914cccc",
+  "model_path": "/workspace/models/cccd552e-849a-42ca-859a-022be914cccc.pkl",
+  "s3_model_path": "s3://mlcreate/models/cccd552e-849a-42ca-859a-022be914cccc.pkl.spark",
+  "model_type": "regression",
+  "training_mode": "distributed_spark",
+  "metrics": {
+    "mse": 1751.0017175358564,
+    "rmse": 41.84497242842748,
+    "r2": 0.9274300626492551,
+    "n_samples": 6
+  },
+  "timestamp": "2026-05-07T15:29:34.149772Z"
+}
