@@ -12,7 +12,7 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 WORKDIR /workspace
 
-RUN pip install --upgrade pip && pip install pyspark==3.4.1 pandas==2.0.3 pyarrow==12.0.1 boto3==1.34.0
+RUN pip install --upgrade pip && pip install pyspark==3.4.1 pandas==2.0.3 numpy==1.24.3 pyarrow==12.0.1 boto3==1.34.0
 
 COPY . ./
 
