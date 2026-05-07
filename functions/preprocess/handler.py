@@ -8,6 +8,14 @@ import json
 from datetime import datetime
 import subprocess
 
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+try:
+    import s3_utils
+except ImportError:
+    s3_utils = None
+
 try:
     from kafka import KafkaProducer
 except Exception:
@@ -84,9 +92,17 @@ def main():
     run_spark(csv_path, out_path)
     n_rows, features = read_parquet_metadata(out_path)
 
+    s3_processed_path = None
+    if s3_utils and s3_utils.enabled():
+        if os.path.isdir(out_path):
+            s3_processed_path = s3_utils.upload_directory(out_path, f"processed/{job_id}.parquet")
+        else:
+            s3_processed_path = s3_utils.upload_file(out_path, f"processed/{job_id}.parquet")
+
     done_msg = {
         "job_id": job_id,
         "processed_path": out_path,
+        "s3_processed_path": s3_processed_path,
         "n_rows": n_rows,
         "features": features,
         "task_type": task_type,

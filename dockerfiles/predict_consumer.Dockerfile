@@ -27,7 +27,8 @@ RUN pip install --upgrade pip && pip install \
 	pyarrow==15.0.2 \
 	kafka-python==2.0.2 \
 	numpy==1.24.3 \
-	scipy==1.11.4
+	scipy==1.11.4 \
+	boto3==1.34.0
 
 COPY . ./
 

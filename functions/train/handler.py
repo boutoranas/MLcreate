@@ -14,6 +14,14 @@ from sqlalchemy import create_engine, Table, Column, MetaData, String, Float, In
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+try:
+    import s3_utils
+except ImportError:
+    s3_utils = None
+
 try:
     from pyspark.sql import SparkSession
     from pyspark.ml import Pipeline
@@ -353,7 +361,12 @@ def main():
     models_dir = os.environ.get('MODELS_DIR', os.path.join(os.getcwd(), 'models'))
     os.makedirs(models_dir, exist_ok=True)
     model_out_path = os.path.join(models_dir, f"{job_id}.pkl")
-    
+
+    # Download processed Parquet from S3 if not available locally
+    if not os.path.exists(processed_path) and s3_utils and s3_utils.enabled():
+        print(f"[Train] {processed_path} not found locally; downloading from S3...")
+        s3_utils.download_file(f"processed/{job_id}.parquet", processed_path)
+
     # Try distributed Spark training first; fall back to local if Spark unavailable
     result = None
     used_spark = False
@@ -367,11 +380,26 @@ def main():
     except Exception as spark_exc:
         print(f"[Train] Spark training unavailable ({spark_exc}); falling back to local training")
         result = train_model(processed_path, model_out_path, model_type=model_type)
-    
+
+    # Upload model to S3
+    s3_model_path = None
+    if s3_utils and s3_utils.enabled():
+        if used_spark:
+            spark_dir = model_out_path + ".spark"
+            meta_path = model_out_path + ".meta"
+            if os.path.isdir(spark_dir):
+                s3_model_path = s3_utils.upload_directory(spark_dir, f"models/{job_id}.pkl.spark")
+            if os.path.exists(meta_path):
+                s3_utils.upload_file(meta_path, f"models/{job_id}.pkl.meta")
+        else:
+            if os.path.exists(model_out_path):
+                s3_model_path = s3_utils.upload_file(model_out_path, f"models/{job_id}.pkl")
+
     record_metadata(os.environ.get('DATABASE_URL'), job_id, model_out_path)
     done_msg = {
         'job_id': job_id,
         'model_path': model_out_path,
+        's3_model_path': s3_model_path,
         'model_type': model_type,
         'training_mode': 'distributed_spark' if used_spark else 'local',
         'metrics': result.get('metrics') if result else None,

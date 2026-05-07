@@ -11,6 +11,14 @@ from datetime import datetime
 import joblib
 import csv
 
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+try:
+    import s3_utils
+except ImportError:
+    s3_utils = None
+
 try:
     from pyspark.sql import SparkSession
     from pyspark.ml import PipelineModel
@@ -190,10 +198,23 @@ def predict(csv_path, model_id, model_type="classification"):
     
     saved_model_type = metadata.get("task_type", model_type)
     
+    # Pull models from S3 if not available locally
+    if s3_utils and s3_utils.enabled() and not os.path.isdir(spark_model_path) and not os.path.exists(joblib_model_path):
+        print(f"[Predict] Model not found locally; attempting S3 download...")
+        if not s3_utils.download_directory(f"models/{clean_model_id}.pkl.spark", spark_model_path):
+            s3_utils.download_file(f"models/{clean_model_id}.pkl", joblib_model_path)
+        if not os.path.exists(metadata_path):
+            s3_utils.download_file(f"models/{clean_model_id}.pkl.meta", metadata_path)
+        # Re-read metadata after potential download
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+            saved_model_type = metadata.get("task_type", model_type)
+
     # Try Spark first (if directory exists), then fall back to joblib
     result = None
     used_spark = False
-    
+
     if SPARK_AVAILABLE and os.path.isdir(spark_model_path):
         print(f"[Predict] Found Spark model at {spark_model_path}")
         try:
