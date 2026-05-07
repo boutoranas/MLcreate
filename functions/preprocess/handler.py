@@ -82,10 +82,12 @@ def main():
     out_path = os.path.join(processed_dir, f"{job_id}.parquet")
 
     csv_path = os.path.abspath(csv_path) if csv_path else csv_path
-    if csv_path and not os.path.exists(csv_path) and s3_csv_key and s3_utils and s3_utils.enabled():
-        print(f"[Preprocess] {csv_path} not found locally; downloading from S3 key {s3_csv_key}...")
+    if csv_path and not os.path.exists(csv_path) and s3_utils and s3_utils.enabled():
+        # Use explicit key if present, otherwise reconstruct from job_id + filename
+        key = s3_csv_key or f"uploads/{job_id}/{os.path.basename(csv_path)}"
+        print(f"[Preprocess] {csv_path} not found locally; downloading from S3 key {key}...")
         os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-        s3_utils.download_file(s3_csv_key, csv_path)
+        s3_utils.download_file(key, csv_path)
 
     run_spark(csv_path, out_path)
     n_rows, features = read_parquet_metadata(out_path)
