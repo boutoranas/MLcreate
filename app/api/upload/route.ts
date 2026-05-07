@@ -61,13 +61,17 @@ async function publishUploadRequest(
     MessageBody: JSON.stringify(message),
   }));
 
-  const messagesDir = path.join(process.cwd(), "messages");
-  await fs.mkdir(messagesDir, { recursive: true });
-  await fs.writeFile(
-    path.join(messagesDir, `upload_request_${jobId}.json`),
-    JSON.stringify(message, null, 2),
-    "utf8"
-  );
+  try {
+    const messagesDir = path.join(process.cwd(), "messages");
+    await fs.mkdir(messagesDir, { recursive: true });
+    await fs.writeFile(
+      path.join(messagesDir, `upload_request_${jobId}.json`),
+      JSON.stringify(message, null, 2),
+      "utf8"
+    );
+  } catch {
+    // read-only filesystem on Vercel — skip local debug write
+  }
 
   return { row_count: 0, column_count: 0, columns: [], preview: [], raw_preview: `Job queued: ${jobId}` };
 }
