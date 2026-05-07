@@ -1,0 +1,49 @@
+{
+  "model_id": "708823d1-5a32-4129-8ef7-57c092b7ca36",
+  "csv_path": "/workspace/data/predictions/predict_1778153552282_test_predict.csv",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T11:32:51.667799Z",
+  "output_csv": "/workspace/data/predictions_output/predictions_1778153570.csv",
+  "result": {
+    "n_rows": 5,
+    "columns": [
+      "id",
+      "sqft",
+      "age",
+      "prediction"
+    ],
+    "prediction_mode": "spark",
+    "sample_predictions": [
+      {
+        "id": 1,
+        "sqft": 1200,
+        "age": 15,
+        "prediction": 309.98919677734375
+      },
+      {
+        "id": 2,
+        "sqft": 850,
+        "age": 30,
+        "prediction": 194.98495483398438
+      },
+      {
+        "id": 3,
+        "sqft": 2000,
+        "age": 5,
+        "prediction": 459.9581298828125
+      },
+      {
+        "id": 4,
+        "sqft": 1500,
+        "age": 20,
+        "prediction": 339.9799499511719
+      },
+      {
+        "id": 5,
+        "sqft": 1100,
+        "age": 25,
+        "prediction": 230.17367553710938
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "job_id": "test-debug-job2",
+  "model_path": "/workspace/models/test-debug-job2.pkl",
+  "s3_model_path": "s3://mlcreate/models/test-debug-job2.pkl.spark",
+  "model_type": "regression",
+  "training_mode": "distributed_spark",
+  "metrics": {
+    "mse": 1751.0017175358564,
+    "rmse": 41.84497242842748,
+    "r2": 0.9274300626492551,
+    "n_samples": 6
+  },
+  "timestamp": "2026-05-07T13:09:32.680314Z"
+}

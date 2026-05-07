@@ -12,7 +12,7 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 WORKDIR /workspace
 
-RUN pip install --upgrade pip && pip install kafka-python==2.0.2 pyspark==3.4.1 pandas==2.0.3 pyarrow==15.0.2 boto3==1.34.0
+RUN pip install --upgrade pip && pip install pyspark==3.4.1 pandas==2.0.3 pyarrow==15.0.2 boto3==1.34.0
 
 COPY . ./
 

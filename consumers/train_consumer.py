@@ -1,58 +1,61 @@
-"""Kafka consumer: listens to 'preprocessing_done' topic and triggers train handler."""
+"""SQS consumer: polls 'preprocessing_done' queue and triggers train handler."""
 import os
 import json
 import subprocess
 import time
 import traceback
-from kafka import KafkaConsumer
+import sys
 
-
-def wait_for_consumer(bootstrap: str, topic: str) -> KafkaConsumer:
-    while True:
-        try:
-            print(f"[Train] Connecting to Kafka at {bootstrap}, topic: {topic}")
-            return KafkaConsumer(
-                topic,
-                bootstrap_servers=bootstrap,
-                value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-                auto_offset_reset="earliest",
-                enable_auto_commit=True,
-                group_id="train_group",
-            )
-        except Exception as exc:
-            print(f"[Train] Kafka not ready yet: {exc}")
-            time.sleep(5)
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import sqs_utils
 
 
 def main():
-    bootstrap = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
-    topic = "preprocessing_done"
-    consumer = wait_for_consumer(bootstrap, topic)
-
-    print(f"[Train] Listening on topic {topic}")
-    for msg_record in consumer:
+    queue_name = os.environ.get('SQS_QUEUE_PREPROCESSING_DONE', 'cloudml-preprocessing-done')
+    queue_url = None
+    while queue_url is None:
         try:
-            msg = msg_record.value
-            job_id = msg.get("job_id")
-            processed_path = msg.get("processed_path")
+            queue_url = sqs_utils.get_queue_url(queue_name)
+            print(f"[Train] Connected to SQS queue: {queue_url}")
+        except Exception as exc:
+            print(f"[Train] SQS not ready: {exc}")
+            time.sleep(5)
 
-            print(f"\n[Train] Received job {job_id}, processed_path={processed_path}")
+    print(f"[Train] Polling queue {queue_name}")
+    while True:
+        try:
+            messages = sqs_utils.receive_messages(queue_url, max_messages=1, wait_seconds=20)
+            for sqs_msg in messages:
+                receipt = sqs_msg['ReceiptHandle']
+                try:
+                    msg = json.loads(sqs_msg['Body'])
+                    job_id = msg.get('job_id')
+                    processed_path = msg.get('processed_path')
 
-            # Write message to disk for handler to read
-            out_dir = os.path.join(os.getcwd(), "messages")
-            os.makedirs(out_dir, exist_ok=True)
-            msg_file = os.path.join(out_dir, f"preprocess_{job_id}.json")
-            with open(msg_file, "w") as f:
-                json.dump(msg, f, indent=2)
+                    print(f"\n[Train] Received job {job_id}, processed_path={processed_path}")
 
-            handler_path = os.path.join(os.getcwd(), "functions", "train", "handler.py")
-            print(f"[Train] Running: python {handler_path} {msg_file}")
-            subprocess.check_call(["python", handler_path, msg_file])
-            print(f"[Train] ✓ Job {job_id} completed")
+                    out_dir = os.path.join(os.getcwd(), 'messages')
+                    os.makedirs(out_dir, exist_ok=True)
+                    msg_file = os.path.join(out_dir, f"preprocess_{job_id}.json")
+                    with open(msg_file, 'w') as f:
+                        json.dump(msg, f, indent=2)
+
+                    handler_path = os.path.join(os.getcwd(), 'functions', 'train', 'handler.py')
+                    print(f"[Train] Running: python {handler_path} {msg_file}")
+                    subprocess.check_call(['python', handler_path, msg_file])
+
+                    sqs_utils.delete_message(queue_url, receipt)
+                    print(f"[Train] ✓ Job {job_id} completed")
+                except Exception:
+                    print("[Train] Error processing message:")
+                    traceback.print_exc()
         except Exception:
-            print("[Train] Error while processing message:")
+            print("[Train] Error polling queue:")
             traceback.print_exc()
+            time.sleep(5)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

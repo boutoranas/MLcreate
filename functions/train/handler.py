@@ -38,9 +38,9 @@ except Exception:
     xgb = None
 
 try:
-    from kafka import KafkaProducer
-except Exception:
-    KafkaProducer = None
+    import sqs_utils
+except ImportError:
+    sqs_utils = None
 
 
 class MajorityClassifier:
@@ -301,30 +301,21 @@ def train_model(processed_path, model_out_path, model_type="classification"):
     return {"model_path": model_out_path, "metrics": metrics, "model_type": model_type}
 
 
-def publish_message(message, topic="training_complete"):
-    bootstrap = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
+def publish_message(message, queue_env="SQS_QUEUE_TRAINING_COMPLETE"):
     out_dir = os.path.join(os.getcwd(), "messages")
     os.makedirs(out_dir, exist_ok=True)
-    
-    # Always write to disk for local dev/testing
     msg_file = os.path.join(out_dir, f"train_{message['job_id']}.json")
     with open(msg_file, "w") as f:
         json.dump(message, f, indent=2)
     print(f"Wrote message to {msg_file}")
-    
-    if KafkaProducer is None:
+
+    if sqs_utils is None:
         return
-    
+    queue = os.environ.get(queue_env, "cloudml-training-complete")
     try:
-        producer = KafkaProducer(
-            bootstrap_servers=bootstrap,
-            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-        )
-        producer.send(topic, message)
-        producer.flush()
-        print("Published message to Kafka topic", topic)
+        sqs_utils.send_message(queue, message)
     except Exception as exc:
-        print(f"Kafka unavailable ({exc}); using local fallback only")
+        print(f"SQS unavailable ({exc}); using local fallback only")
 
 
 def record_metadata(db_url, job_id, model_path, metrics=None):
