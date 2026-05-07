@@ -1,0 +1,14 @@
+{
+  "job_id": "e9a886b0-e201-463c-bedf-85a5aa000838",
+  "uploader": "local",
+  "csv_path": "/workspace/data/uploads/1778181606137_example_dataset_training.csv",
+  "s3_csv_key": null,
+  "task_type": "classification",
+  "model_type": "classification",
+  "timestamp": "2026-05-07T19:20:03.461035Z",
+  "row_count": 0,
+  "column_count": 0,
+  "columns": [],
+  "preview": [],
+  "raw_preview": "Job queued: e9a886b0-e201-463c-bedf-85a5aa000838"
+}

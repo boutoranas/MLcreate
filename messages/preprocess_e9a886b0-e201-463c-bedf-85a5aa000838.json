@@ -1,0 +1,16 @@
+{
+  "job_id": "e9a886b0-e201-463c-bedf-85a5aa000838",
+  "processed_path": "/workspace/processed/e9a886b0-e201-463c-bedf-85a5aa000838.parquet",
+  "s3_processed_path": "s3://mlcreate/processed/e9a886b0-e201-463c-bedf-85a5aa000838.parquet",
+  "n_rows": 20,
+  "features": [
+    "ID",
+    "Income_k",
+    "Debt_Ratio",
+    "Credit_Score",
+    "Age"
+  ],
+  "task_type": "classification",
+  "model_type": "classification",
+  "timestamp": "2026-05-07T19:20:21.612681Z"
+}
