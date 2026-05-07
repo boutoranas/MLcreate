@@ -1,52 +1,56 @@
-"""Kafka consumer: listens to 'csv_upload_requested' topic and triggers ingest handler."""
+"""SQS consumer: polls 'csv_upload_requested' queue and triggers ingest handler."""
 import os
 import json
 import subprocess
 import time
 import traceback
-from kafka import KafkaConsumer
+import sys
 
-
-def wait_for_consumer(bootstrap: str, topic: str) -> KafkaConsumer:
-    while True:
-        try:
-            print(f"[Ingest] Connecting to Kafka at {bootstrap}, topic: {topic}")
-            return KafkaConsumer(
-                topic,
-                bootstrap_servers=bootstrap,
-                value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-                auto_offset_reset="earliest",
-                enable_auto_commit=True,
-                group_id="ingest_group",
-            )
-        except Exception as exc:
-            print(f"[Ingest] Kafka not ready yet: {exc}")
-            time.sleep(5)
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import sqs_utils
 
 
 def main():
-    bootstrap = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
-    topic = "csv_upload_requested"
-    consumer = wait_for_consumer(bootstrap, topic)
-
-    print(f"[Ingest] Listening on topic {topic}")
-    for msg_record in consumer:
+    queue_name = os.environ.get('SQS_QUEUE_CSV_UPLOAD_REQUESTED', 'cloudml-csv-upload-requested')
+    queue_url = None
+    while queue_url is None:
         try:
-            msg = msg_record.value
-            job_id = msg.get("job_id")
-            csv_path = msg.get("csv_path")
-            task_type = msg.get("task_type") or msg.get("model_type") or "classification"
+            queue_url = sqs_utils.get_queue_url(queue_name)
+            print(f"[Ingest] Connected to SQS queue: {queue_url}")
+        except Exception as exc:
+            print(f"[Ingest] SQS not ready: {exc}")
+            time.sleep(5)
 
-            print(f"\n[Ingest] Received job {job_id}, csv_path={csv_path}, task_type={task_type}")
+    print(f"[Ingest] Polling queue {queue_name}")
+    while True:
+        try:
+            messages = sqs_utils.receive_messages(queue_url, max_messages=1, wait_seconds=20)
+            for sqs_msg in messages:
+                receipt = sqs_msg['ReceiptHandle']
+                try:
+                    msg = json.loads(sqs_msg['Body'])
+                    job_id = msg.get('job_id')
+                    csv_path = msg.get('csv_path')
+                    task_type = msg.get('task_type') or msg.get('model_type') or 'classification'
 
-            handler_path = os.path.join(os.getcwd(), "functions", "ingest", "handler.py")
-            print(f"[Ingest] Running: python {handler_path} {csv_path} {job_id} {task_type}")
-            subprocess.check_call(["python", handler_path, csv_path, job_id, task_type])
-            print(f"[Ingest] ✓ Job {job_id} completed")
+                    print(f"\n[Ingest] Received job {job_id}, csv_path={csv_path}, task_type={task_type}")
+
+                    handler_path = os.path.join(os.getcwd(), 'functions', 'ingest', 'handler.py')
+                    print(f"[Ingest] Running: python {handler_path} {csv_path} {job_id} {task_type}")
+                    subprocess.check_call(['python', handler_path, csv_path, job_id, task_type])
+
+                    sqs_utils.delete_message(queue_url, receipt)
+                    print(f"[Ingest] ✓ Job {job_id} completed")
+                except Exception:
+                    print("[Ingest] Error processing message:")
+                    traceback.print_exc()
         except Exception:
-            print("[Ingest] Error while processing message:")
+            print("[Ingest] Error polling queue:")
             traceback.print_exc()
+            time.sleep(5)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

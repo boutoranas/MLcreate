@@ -1,0 +1,7 @@
+{
+  "predict_id": "0a3145f3-81b2-43e2-ba36-ce39e7ff8876",
+  "csv_path": "/workspace/data/predictions/predict_1778153462975_test_predict.csv",
+  "model_id": "708823d1-5a32-4129-8ef7-57c092b7ca36",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T11:31:02.980Z"
+}

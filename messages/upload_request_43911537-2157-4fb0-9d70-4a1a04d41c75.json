@@ -1,0 +1,8 @@
+{
+  "job_id": "43911537-2157-4fb0-9d70-4a1a04d41c75",
+  "csv_path": "data/uploads/1778158962069_housing_regression_data.csv",
+  "filename": "housing_regression_data.csv",
+  "task_type": "regression",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T13:02:42.070Z"
+}

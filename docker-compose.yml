@@ -64,15 +64,14 @@ services:
     volumes:
       - ./:/workspace
     environment:
-      KAFKA_BOOTSTRAP: kafka:29092
       PROCESSED_DIR: /workspace/processed
+      SQS_QUEUE_DATASET_UPLOADED: ${SQS_QUEUE_DATASET_UPLOADED:-cloudml-dataset-uploaded}
+      SQS_QUEUE_PREPROCESSING_DONE: ${SQS_QUEUE_PREPROCESSING_DONE:-cloudml-preprocessing-done}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-}
-    depends_on:
-      - kafka
     restart: unless-stopped
 
   ingest_consumer:
@@ -83,9 +82,12 @@ services:
     volumes:
       - ./:/workspace
     environment:
-      KAFKA_BOOTSTRAP: kafka:29092
-    depends_on:
-      - kafka
+      SQS_QUEUE_CSV_UPLOAD_REQUESTED: ${SQS_QUEUE_CSV_UPLOAD_REQUESTED:-cloudml-csv-upload-requested}
+      SQS_QUEUE_DATASET_UPLOADED: ${SQS_QUEUE_DATASET_UPLOADED:-cloudml-dataset-uploaded}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
     restart: unless-stopped
 
   train_consumer:
@@ -96,17 +98,17 @@ services:
     volumes:
       - ./:/workspace
     environment:
-      KAFKA_BOOTSTRAP: kafka:29092
       PROCESSED_DIR: /workspace/processed
       MODELS_DIR: /workspace/models
       DATABASE_URL: postgresql+psycopg2://cloudml:cloudml@postgres:5432/cloudml
+      SQS_QUEUE_PREPROCESSING_DONE: ${SQS_QUEUE_PREPROCESSING_DONE:-cloudml-preprocessing-done}
+      SQS_QUEUE_TRAINING_COMPLETE: ${SQS_QUEUE_TRAINING_COMPLETE:-cloudml-training-complete}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-}
     depends_on:
-      - kafka
       - postgres
     restart: unless-stopped
 
@@ -118,43 +120,14 @@ services:
     volumes:
       - ./:/workspace
     environment:
-      KAFKA_BOOTSTRAP: kafka:29092
       MODELS_DIR: /workspace/models
+      SQS_QUEUE_PREDICT_REQUESTED: ${SQS_QUEUE_PREDICT_REQUESTED:-cloudml-predict-requested}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       S3_BUCKET: ${S3_BUCKET:-}
-    depends_on:
-      - kafka
     restart: unless-stopped
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: cloudml-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_SYNC_LIMIT: 2
-      ZOOKEEPER_INIT_LIMIT: 5
-    ports:
-      - "2181:2181"
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: cloudml-kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
   postgres:
     image: postgres:15-alpine

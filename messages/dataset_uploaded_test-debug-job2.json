@@ -1,0 +1,73 @@
+{
+  "job_id": "test-debug-job2",
+  "uploader": "local",
+  "csv_path": "/workspace/data/uploads/1778158837431_housing_regression_data.csv",
+  "task_type": "regression",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T13:08:42.596795Z",
+  "row_count": 25,
+  "column_count": 4,
+  "columns": [
+    "id",
+    "sqft",
+    "age",
+    "label"
+  ],
+  "preview": [
+    [
+      "1",
+      "1200",
+      "15",
+      "310"
+    ],
+    [
+      "2",
+      "850",
+      "30",
+      "195"
+    ],
+    [
+      "3",
+      "2400",
+      "5",
+      "580"
+    ],
+    [
+      "4",
+      "1500",
+      "20",
+      "340"
+    ],
+    [
+      "5",
+      "3000",
+      "2",
+      "720"
+    ],
+    [
+      "6",
+      "1100",
+      "40",
+      "210"
+    ],
+    [
+      "7",
+      "1800",
+      "12",
+      "425"
+    ],
+    [
+      "8",
+      "950",
+      "25",
+      "230"
+    ],
+    [
+      "9",
+      "2100",
+      "8",
+      "490"
+    ]
+  ],
+  "raw_preview": "Job queued: test-debug-job2"
+}

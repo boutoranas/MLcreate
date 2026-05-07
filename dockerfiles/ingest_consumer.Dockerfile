@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /workspace
 
-RUN pip install --upgrade pip && pip install kafka-python==2.0.2
+RUN pip install --upgrade pip && pip install boto3==1.34.0
 
 COPY . ./
 

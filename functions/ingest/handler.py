@@ -9,33 +9,31 @@ import json
 import uuid
 from datetime import datetime
 
+_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
 try:
-    from kafka import KafkaProducer
-except Exception:
-    KafkaProducer = None
+    import sqs_utils
+except ImportError:
+    sqs_utils = None
 
 
-def publish_message(message, topic="dataset_uploaded"):
-    bootstrap = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
+def publish_message(message, queue_env="SQS_QUEUE_DATASET_UPLOADED"):
     out_dir = os.path.join(os.getcwd(), "messages")
     os.makedirs(out_dir, exist_ok=True)
-    
-    # Always write to disk for local dev/testing
     msg_file = os.path.join(out_dir, f"dataset_uploaded_{message['job_id']}.json")
     with open(msg_file, "w") as f:
         json.dump(message, f, indent=2)
     print(f"Wrote message to {msg_file}")
-    
-    if KafkaProducer is None:
+
+    if sqs_utils is None:
         return
-    
+    queue = os.environ.get(queue_env, "cloudml-dataset-uploaded")
     try:
-        p = KafkaProducer(bootstrap_servers=bootstrap, value_serializer=lambda v: json.dumps(v).encode("utf-8"))
-        p.send(topic, message)
-        p.flush()
-        print("Published message to Kafka topic", topic)
+        sqs_utils.send_message(queue, message)
     except Exception as exc:
-        print(f"Kafka unavailable ({exc}); using local fallback only")
+        print(f"SQS unavailable ({exc}); using local fallback only")
 
 
 def main():

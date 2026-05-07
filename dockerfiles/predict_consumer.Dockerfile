@@ -25,7 +25,6 @@ RUN pip install --upgrade pip && pip install \
 	joblib==1.2.0 \
 	pandas==2.0.3 \
 	pyarrow==15.0.2 \
-	kafka-python==2.0.2 \
 	numpy==1.24.3 \
 	scipy==1.11.4 \
 	boto3==1.34.0

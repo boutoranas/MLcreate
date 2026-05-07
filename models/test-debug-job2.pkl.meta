@@ -1,0 +1,1 @@
+{"model_type": "spark_mllib", "spark_path": "/workspace/models/test-debug-job2.pkl.spark", "feature_cols": ["sqft", "age"], "task_type": "regression"}

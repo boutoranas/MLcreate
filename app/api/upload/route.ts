@@ -1,8 +1,11 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import { v4 as uuidv4 } from "uuid";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 
 export const runtime = "nodejs";
+
+const sqs = new SQSClient({ region: process.env.AWS_DEFAULT_REGION ?? "us-east-1" });
 
 type PythonResult = {
   row_count: number;
@@ -18,31 +21,22 @@ async function publishUploadRequest(
   taskType: string
 ): Promise<{ jobId: string; result: PythonResult }> {
   const jobId = uuidv4();
-  const kafkaBootstrap = process.env.KAFKA_BOOTSTRAP || "localhost:9092";
+  const queueUrl = process.env.SQS_QUEUE_CSV_UPLOAD_REQUESTED ?? "cloudml-csv-upload-requested";
   const relativeCsvPath = path.relative(process.cwd(), csvPath).replace(/\\/g, "/");
 
-  // Create message for ingest_consumer
   const message = {
     job_id: jobId,
     csv_path: relativeCsvPath,
-    filename: filename,
+    filename,
     task_type: taskType,
     model_type: taskType,
     timestamp: new Date().toISOString(),
   };
 
-  const { Kafka } = await import("kafkajs");
-  const kafka = new Kafka({
-    clientId: "next-upload-api",
-    brokers: kafkaBootstrap.split(","),
-  });
-  const producer = kafka.producer();
-  await producer.connect();
-  await producer.send({
-    topic: "csv_upload_requested",
-    messages: [{ key: jobId, value: JSON.stringify(message) }],
-  });
-  await producer.disconnect();
+  await sqs.send(new SendMessageCommand({
+    QueueUrl: queueUrl,
+    MessageBody: JSON.stringify(message),
+  }));
 
   const messagesDir = path.join(process.cwd(), "messages");
   await fs.mkdir(messagesDir, { recursive: true });
@@ -52,7 +46,6 @@ async function publishUploadRequest(
     "utf8"
   );
 
-  // Return response indicating async processing
   const result: PythonResult = {
     row_count: 0,
     column_count: 0,
@@ -78,15 +71,11 @@ export async function POST(request: Request) {
   }
 
   if (!file.name.toLowerCase().endsWith(".csv")) {
-    return Response.json(
-      { error: "Only .csv files are supported." },
-      { status: 400 }
-    );
+    return Response.json({ error: "Only .csv files are supported." }, { status: 400 });
   }
 
   const content = await file.text();
 
-  // Save CSV to disk
   const tmpDir = path.join(process.cwd(), "data", "uploads");
   await fs.mkdir(tmpDir, { recursive: true });
   const timestamp = Date.now();
@@ -94,13 +83,12 @@ export async function POST(request: Request) {
   await fs.writeFile(savePath, content, "utf8");
 
   try {
-    // Publish upload event to Kafka and return job id for status polling
     const { jobId, result } = await publishUploadRequest(savePath, file.name, taskType);
 
     return Response.json({
       job_id: jobId,
       status: "queued",
-      backend: "kafka_async",
+      backend: "sqs_async",
       filename: file.name,
       size: file.size,
       task_type: taskType,
@@ -108,10 +96,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return Response.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Upload processing failed.",
-      },
+      { error: error instanceof Error ? error.message : "Upload processing failed." },
       { status: 500 }
     );
   }
