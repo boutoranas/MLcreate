@@ -74,11 +74,19 @@ def main():
     with open(msg_file) as f:
         msg = json.load(f)
     csv_path = msg.get("csv_path")
+    s3_csv_key = msg.get("s3_csv_key")
     job_id = msg.get("job_id")
     task_type = (msg.get("task_type") or msg.get("model_type") or "classification").lower()
     processed_dir = os.environ.get("PROCESSED_DIR", os.path.join(os.getcwd(), "processed"))
     os.makedirs(processed_dir, exist_ok=True)
     out_path = os.path.join(processed_dir, f"{job_id}.parquet")
+
+    csv_path = os.path.abspath(csv_path) if csv_path else csv_path
+    if csv_path and not os.path.exists(csv_path) and s3_csv_key and s3_utils and s3_utils.enabled():
+        print(f"[Preprocess] {csv_path} not found locally; downloading from S3 key {s3_csv_key}...")
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+        s3_utils.download_file(s3_csv_key, csv_path)
+
     run_spark(csv_path, out_path)
     n_rows, features = read_parquet_metadata(out_path)
 

@@ -1,0 +1,13 @@
+{
+  "job_id": "f86c87e1-dffb-43a7-9770-d386db2f1f04",
+  "uploader": "local",
+  "csv_path": "/workspace/data/uploads/1778173041128_housing_regression_data.csv",
+  "task_type": "regression",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T16:57:18.593847Z",
+  "row_count": 0,
+  "column_count": 0,
+  "columns": [],
+  "preview": [],
+  "raw_preview": "Job queued: f86c87e1-dffb-43a7-9770-d386db2f1f04"
+}
