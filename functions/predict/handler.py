@@ -14,10 +14,12 @@ import csv
 try:
     from pyspark.sql import SparkSession
     from pyspark.ml import PipelineModel
+    from pyspark.ml.feature import VectorAssembler
     import pandas as pd
     SPARK_AVAILABLE = True
 except Exception as e:
     SPARK_AVAILABLE = False
+    print(f"[Predict] WARNING: Spark unavailable: {e}")
 
 import re
 
@@ -41,13 +43,14 @@ def _fix_metadata_nan(metadata_path):
 
 
 def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
-    """Load Spark model and make predictions on CSV data."""
     if not SPARK_AVAILABLE:
-        raise ImportError("Spark not available; cannot use Spark model for prediction")
-    
+        raise ImportError("Spark not available")
+
     import sys
     python_exec = sys.executable
-    
+    os.environ["PYSPARK_PYTHON"] = python_exec
+    os.environ["PYSPARK_DRIVER_PYTHON"] = python_exec
+
     spark = SparkSession.builder \
         .appName("cloudml-predict") \
         .master("local[*]") \
@@ -55,50 +58,77 @@ def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
         .config("spark.pyspark.python", python_exec) \
         .config("spark.pyspark.driver.python", python_exec) \
         .config("spark.driver.maxResultSize", "1g") \
+        .config("spark.hadoop.fs.file.impl.disable.cache", "true") \
+        .config("spark.hadoop.mapreduce.fileoutputcommitter.marksuccessfuljobs", "false") \
         .getOrCreate()
-    
+        
+    spark.sparkContext._jsc.hadoopConfiguration().set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
+    spark.sparkContext._jsc.hadoopConfiguration().setBoolean("dfs.client.read.shortcircuit.skip.checksum", True)
+
     try:
-        # Load the Spark model from directory
-        print(f"[Predict] Loading Spark model from {spark_model_dir}")
-        model = PipelineModel.load(spark_model_dir)
-        
-        # Read input CSV as Spark DataFrame
+        # Read metadata to find the actual saved class
+        metadata_file = os.path.join(spark_model_dir, "metadata", "part-00000")
+        with open(metadata_file, "r") as f:
+            metadata = json.load(f)
+        class_name = metadata.get("class", "")
+        print(f"[Predict] Model class: {class_name}")
+
+        # Load using the correct class
+        if "PipelineModel" in class_name:
+            model = PipelineModel.load(spark_model_dir)
+        elif "SparkXGBRegressor" in class_name:
+            from xgboost.spark import SparkXGBRegressorModel
+            model = SparkXGBRegressorModel.load(spark_model_dir)
+        elif "SparkXGBClassifier" in class_name:
+            from xgboost.spark import SparkXGBClassifierModel
+            model = SparkXGBClassifierModel.load(spark_model_dir)
+        else:
+            raise ValueError(f"Unsupported Spark model class: {class_name}")
+
         df = spark.read.option("header", "true").option("inferSchema", "true").csv(csv_path)
-        print(f"[Predict] Loaded CSV with {df.count()} rows and columns: {df.columns}")
+        print(f"[Predict] Loaded CSV with {df.count()} rows")
         
-        # Make predictions
+        # Load metadata to get the correct feature columns
+        meta_file = os.path.join(os.path.dirname(spark_model_dir), f"{os.path.basename(spark_model_dir).replace('.pkl.spark', '')}.pkl.meta")
+        if os.path.exists(meta_file):
+            with open(meta_file, "r") as f:
+                meta = json.load(f)
+                if "feature_cols" in meta:
+                    feature_cols = meta["feature_cols"]
+                    print(f"[Predict] Using feature columns from metadata: {feature_cols}")
+                else:
+                    # Fallback: ignore label/target/prediction columns
+                    ignore_cols = {"label", "target", "prediction"}
+                    feature_cols = [c for c in df.columns if c.lower() not in ignore_cols]
+                    print(f"[Predict] Using fallback feature columns: {feature_cols}")
+        else:
+            # Fallback: ignore label/target/prediction columns
+            ignore_cols = {"label", "target", "prediction"}
+            feature_cols = [c for c in df.columns if c.lower() not in ignore_cols]
+            print(f"[Predict] Using fallback feature columns: {feature_cols}")
+
+        assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
+        df = assembler.transform(df)
+
         predictions = model.transform(df)
-        print(f"[Predict] Made predictions on {predictions.count()} samples")
-        
-        # Write predictions to CSV output file
+        pred_pd = predictions.toPandas()
+
         predictions_dir = os.environ.get('PREDICTIONS_OUTPUT_DIR', os.path.join(os.getcwd(), 'data', 'predictions_output'))
         os.makedirs(predictions_dir, exist_ok=True)
-        output_csv = os.path.join(predictions_dir, f"predictions_{datetime.now().strftime('%s')}.csv")
-        predictions.coalesce(1).write.mode("overwrite").option("header", "true").csv(output_csv)
+        ts = int(datetime.now().timestamp())
+        output_csv = os.path.join(predictions_dir, f"predictions_{ts}.csv")
+        pred_pd.to_csv(output_csv, index=False)
         print(f"[Predict] Wrote predictions to {output_csv}")
-        
-        # Collect results: keep original features and predictions
-        result_df = predictions.select("*")
-        rows = result_df.collect()
-        
-        # Convert to list of dicts for JSON serialization
-        results = []
-        for row in rows:
-            row_dict = row.asDict()
-            results.append(row_dict)
-        
-        # Get column names
-        columns = df.columns + ["prediction"]
-        
+
         return {
-            "predictions": results,
-            "n_rows": len(results),
-            "columns": columns,
+            "predictions": pred_pd.to_dict(orient='records'),
+            "n_rows": len(pred_pd),
+            "columns": list(pred_pd.columns),
             "model_type": model_type,
             "prediction_mode": "spark",
-            "output_csv": output_csv
+            "output_csv": output_csv,
         }
-    
+
     finally:
         spark.stop()
 
@@ -249,4 +279,5 @@ def main():
 
 
 if __name__ == '__main__':
+    print(f"[Predict] SPARK_AVAILABLE: {SPARK_AVAILABLE}")
     main()

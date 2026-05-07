@@ -47,15 +47,13 @@ def publish_message(message, topic="preprocessing_done"):
 
 
 def read_parquet_metadata(out_path):
+    ignore_cols = {"label", "target", "prediction", "id"}
     try:
         import pandas as pd
 
         df_meta = pd.read_parquet(out_path)
         n_rows = int(len(df_meta))
-        if "label" in df_meta.columns:
-            features = [c for c in df_meta.columns if c != "label"]
-        else:
-            features = list(df_meta.columns)
+        features = [c for c in columns if c not in ignore_cols]
         return n_rows, features
     except Exception:
         try:
@@ -64,10 +62,7 @@ def read_parquet_metadata(out_path):
             table = pq.read_table(out_path)
             columns = table.column_names
             n_rows = int(table.num_rows)
-            if "label" in columns:
-                features = [c for c in columns if c != "label"]
-            else:
-                features = list(columns)
+            features = [c for c in columns if c not in ignore_cols]
             return n_rows, features
         except Exception:
             return None, None

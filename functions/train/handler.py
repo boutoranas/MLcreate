@@ -81,8 +81,9 @@ def train_model_spark(processed_path, model_out_path, model_type="classification
         df = spark.read.parquet(processed_path)
         print(f"[Train] Loaded parquet with {df.count()} rows")
         
-        # Assume 'label' is the target, everything else is features
-        feature_cols = [col for col in df.columns if col != 'label']
+        # Use same ignore logic as local training
+        ignore_cols = {"label", "target", "prediction", "id"}
+        feature_cols = [col for col in df.columns if col not in ignore_cols]
         print(f"[Train] Using features: {feature_cols}")
         
         # Assemble features into a single vector column
@@ -223,13 +224,15 @@ def compute_metrics(y_true, y_pred, model_type="classification"):
 
 
 def load_parquet_training_data(processed_path):
+    ignore_cols = {"label", "target", "prediction", "id"} 
     try:
         import pandas as pd
 
         df = pd.read_parquet(processed_path)
         if 'label' not in df.columns:
             raise ValueError('label column not found')
-        X = df.drop(columns=['label'])
+        feature_cols = [c for c in df.columns if c not in ignore_cols]
+        X = df[feature_cols]
         y = df['label']
         return X, y
     except Exception:
@@ -239,7 +242,7 @@ def load_parquet_training_data(processed_path):
         if 'label' not in table.column_names:
             raise ValueError('label column not found')
         data = table.to_pydict()
-        feature_names = [name for name in table.column_names if name != 'label']
+        feature_names = [c for c in table.column_names if c not in ignore_cols]
         X = [list(values) for values in zip(*(data[name] for name in feature_names))] if feature_names else [[] for _ in range(table.num_rows)]
         y = data['label']
         return X, y

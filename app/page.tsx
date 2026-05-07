@@ -283,15 +283,6 @@ export default function Home() {
 
                 <div>
                   <h3 className="text-sm font-medium uppercase tracking-[0.2em] text-slate-400">
-                    Preview
-                  </h3>
-                  <pre className="mt-2 overflow-x-auto rounded-2xl bg-black/30 p-4 text-xs leading-6 text-lime-200">
-                    {JSON.stringify(response.result.preview, null, 2)}
-                  </pre>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium uppercase tracking-[0.2em] text-slate-400">
                     Raw snippet
                   </h3>
                   <pre className="mt-2 overflow-x-auto rounded-2xl bg-black/30 p-4 text-xs leading-6 text-slate-300">
