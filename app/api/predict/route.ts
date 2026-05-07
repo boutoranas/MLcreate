@@ -2,10 +2,20 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { v4 as uuidv4 } from "uuid";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const runtime = "nodejs";
 
 const sqs = new SQSClient({ region: process.env.AWS_DEFAULT_REGION ?? "us-east-1" });
+const s3 = new S3Client({ region: process.env.AWS_DEFAULT_REGION ?? "us-east-1" });
+
+async function uploadPredictionCsvToS3(buffer: Buffer, predictId: string, filename: string): Promise<string | null> {
+	const bucket = process.env.S3_BUCKET;
+	if (!bucket) return null;
+	const key = `predictions/${predictId}/${filename}`;
+	await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: "text/csv" }));
+	return key;
+}
 
 type PredictResponse = {
 	predict_id: string;
@@ -18,14 +28,16 @@ type PredictResponse = {
 async function publishPredictRequest(
 	csvPath: string,
 	modelId: string,
-	modelType: string
+	modelType: string,
+	s3CsvKey: string | null = null,
+	predictId: string = uuidv4()
 ): Promise<{ predictId: string }> {
-	const predictId = uuidv4();
 	const queueUrl = process.env.SQS_QUEUE_PREDICT_REQUESTED ?? "cloudml-predict-requested";
 
 	const message = {
 		predict_id: predictId,
 		csv_path: csvPath,
+		s3_csv_key: s3CsvKey,
 		model_id: modelId,
 		model_type: modelType,
 		timestamp: new Date().toISOString(),
@@ -62,22 +74,32 @@ export async function POST(request: Request): Promise<Response> {
 			return Response.json({ error: "No model_id provided" }, { status: 400 });
 		}
 
-		const predictionsDir = path.join(process.cwd(), "data", "predictions");
-		await fs.mkdir(predictionsDir, { recursive: true });
-
+		const predictId = uuidv4();
 		const csvFileName = `predict_${Date.now()}_${file.name}`;
-		const csvPath = path.join(predictionsDir, csvFileName);
 		const arrayBuffer = await file.arrayBuffer();
-		await fs.writeFile(csvPath, Buffer.from(arrayBuffer));
+		const buffer = Buffer.from(arrayBuffer);
 
-		console.log(`[Predict API] Saved CSV to ${csvPath}`);
+		const s3CsvKey = await uploadPredictionCsvToS3(buffer, predictId, file.name);
 
-		const containerCsvPath = "/workspace/data/predictions/" + csvFileName;
-		const { predictId } = await publishPredictRequest(
+		// Best-effort local write for Docker dev
+		try {
+			const predictionsDir = path.join(process.cwd(), "data", "predictions");
+			await fs.mkdir(predictionsDir, { recursive: true });
+			await fs.writeFile(path.join(predictionsDir, csvFileName), buffer);
+		} catch { /* read-only on Vercel */ }
+
+		const containerCsvPath = s3CsvKey
+			? ""
+			: "/workspace/data/predictions/" + csvFileName;
+
+		const { predictId: pid } = await publishPredictRequest(
 			containerCsvPath,
 			modelId,
-			modelType ?? "classification"
+			modelType ?? "classification",
+			s3CsvKey,
+			predictId
 		);
+		void pid;
 
 		const response: PredictResponse = {
 			predict_id: predictId,

@@ -51,12 +51,13 @@ def main():
                 try:
                     msg = json.loads(sqs_msg['Body'])
                     predict_id = msg.get('predict_id')
-                    csv_path = msg.get('csv_path')
+                    csv_path = msg.get('csv_path') or ''
+                    s3_csv_key = msg.get('s3_csv_key') or ''
                     model_id = msg.get('model_id')
                     model_type = msg.get('model_type', 'classification')
 
                     print(f"\n[Predict] Received predict_id {predict_id}, model_id={model_id}, type={model_type}")
-                    print(f"[Predict] CSV path: {csv_path}")
+                    print(f"[Predict] CSV path: {csv_path}, s3_csv_key: {s3_csv_key}")
 
                     out_dir = os.path.join(os.getcwd(), 'messages')
                     os.makedirs(out_dir, exist_ok=True)
@@ -65,8 +66,8 @@ def main():
                         json.dump(msg, f, indent=2)
 
                     handler_path = os.path.join(os.getcwd(), 'functions', 'predict', 'handler.py')
-                    print(f"[Predict] Running: python {handler_path} {csv_path} {model_id} {model_type}")
-                    subprocess.check_call(['python', handler_path, csv_path, model_id, model_type])
+                    print(f"[Predict] Running: python {handler_path} {csv_path} {model_id} {model_type} {s3_csv_key}")
+                    subprocess.check_call(['python', handler_path, csv_path, model_id, model_type, s3_csv_key])
 
                     sqs_utils.delete_message(queue_url, receipt)
                     print(f"[Predict] ✓ Predict job {predict_id} completed")

@@ -244,7 +244,13 @@ def main():
     csv_path = sys.argv[1]
     model_id = sys.argv[2]
     model_type = sys.argv[3] if len(sys.argv) > 3 else "classification"
-    
+    s3_csv_key = sys.argv[4] if len(sys.argv) > 4 else None
+
+    if csv_path and not os.path.exists(csv_path) and s3_csv_key and s3_utils and s3_utils.enabled():
+        print(f"[Predict] CSV not found locally; downloading from S3 key {s3_csv_key}...")
+        os.makedirs(os.path.dirname(os.path.abspath(csv_path)), exist_ok=True)
+        s3_utils.download_file(s3_csv_key, csv_path)
+
     if not os.path.exists(csv_path):
         print(f"Error: CSV file not found: {csv_path}")
         sys.exit(1)
