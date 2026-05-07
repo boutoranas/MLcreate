@@ -1,0 +1,14 @@
+{
+  "job_id": "774835a8-ebb2-4d20-9b81-0af90d9790cc",
+  "uploader": "local",
+  "csv_path": "/workspace/data/uploads/1778180411444_example_dataset_training.csv",
+  "s3_csv_key": "uploads/774835a8-ebb2-4d20-9b81-0af90d9790cc/example_dataset_training.csv",
+  "task_type": "classification",
+  "model_type": "classification",
+  "timestamp": "2026-05-07T19:00:11.799559Z",
+  "row_count": 0,
+  "column_count": 0,
+  "columns": [],
+  "preview": [],
+  "raw_preview": "Job queued: 774835a8-ebb2-4d20-9b81-0af90d9790cc"
+}

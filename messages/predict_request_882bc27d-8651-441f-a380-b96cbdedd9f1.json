@@ -1,0 +1,8 @@
+{
+  "predict_id": "882bc27d-8651-441f-a380-b96cbdedd9f1",
+  "csv_path": "",
+  "s3_csv_key": "predictions/882bc27d-8651-441f-a380-b96cbdedd9f1/test_predict.csv",
+  "model_id": "c31398a9-24a2-42cc-b1dd-4bfbeb614944",
+  "model_type": "regression",
+  "timestamp": "2026-05-07T18:50:02.613Z"
+}

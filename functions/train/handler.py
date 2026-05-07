@@ -10,7 +10,7 @@ import sys
 import json
 from datetime import datetime
 import joblib
-from sqlalchemy import create_engine, Table, Column, MetaData, String, Float, Integer
+from sqlalchemy import create_engine
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 
@@ -322,19 +322,20 @@ def record_metadata(db_url, job_id, model_path, metrics=None):
     if not db_url:
         print("No DATABASE_URL provided; skipping metadata write")
         return
-    engine = create_engine(db_url)
-    meta = MetaData()
-    models = Table('models', meta,
-                   Column('job_id', String, primary_key=True),
-                   Column('model_path', String),
-                   Column('created_at', String))
-    meta.create_all(engine)
-    from sqlalchemy import text
-    ins = models.insert().values(job_id=job_id, model_path=model_path, created_at=datetime.utcnow().isoformat() + 'Z')
-    with engine.connect() as conn:
-        conn.execute(ins)
-        conn.execute(text("UPDATE jobs SET status = 'completed' WHERE job_id = :jid"), {"jid": job_id})
-        conn.commit()
+    try:
+        engine = create_engine(db_url)
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO models (job_id, model_path, created_at)
+                VALUES (:job_id, :model_path, NOW())
+                ON CONFLICT (job_id) DO NOTHING
+            """), {"job_id": job_id, "model_path": model_path})
+            conn.execute(text("UPDATE jobs SET status = 'completed' WHERE job_id = :jid"), {"jid": job_id})
+            conn.commit()
+        print(f"[Train] DB updated for job {job_id}")
+    except Exception as exc:
+        print(f"[Train] Warning: DB update failed ({exc}); model is on S3")
 
 
 def main():

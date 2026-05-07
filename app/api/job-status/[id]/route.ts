@@ -60,7 +60,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       s3KeyExists(bucket, `uploads/${id}`),
     ]);
 
-    if (hasModel) status = "training";
+    if (hasModel) status = "completed";
     else if (hasProcessed) status = "training";
     else if (hasUploaded) status = "ingested";
     else status = "queued";
