@@ -329,9 +329,11 @@ def record_metadata(db_url, job_id, model_path, metrics=None):
                    Column('model_path', String),
                    Column('created_at', String))
     meta.create_all(engine)
+    from sqlalchemy import text
     ins = models.insert().values(job_id=job_id, model_path=model_path, created_at=datetime.utcnow().isoformat() + 'Z')
     with engine.connect() as conn:
         conn.execute(ins)
+        conn.execute(text("UPDATE jobs SET status = 'completed' WHERE job_id = :jid"), {"jid": job_id})
         conn.commit()
 
 
