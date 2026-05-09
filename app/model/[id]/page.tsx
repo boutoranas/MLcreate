@@ -39,7 +39,6 @@ export default function ModelPage() {
   const [predictError, setPredictError] = useState<string | null>(null);
   const [predictResponse, setPredictResponse] = useState<PredictResponse | null>(null);
   const [predictStatus, setPredictStatus] = useState<PredictStatus | null>(null);
-  const [pollInterval, setPollInterval] = useState<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!predictResponse || predictResponse.status !== "queued") return;
@@ -51,23 +50,15 @@ export default function ModelPage() {
         setPredictStatus(data);
         if (data.status === "ready") {
           clearInterval(interval);
-          setPollInterval(null);
         }
       } catch {
         // keep polling
       }
     }, 5000);
-    setPollInterval(interval);
     return () => clearInterval(interval);
   }, [predictResponse]);
 
   useEffect(() => {
-    return () => { if (pollInterval) clearInterval(pollInterval); };
-  }, [pollInterval]);
-
-  useEffect(() => {
-    setModelLoading(true);
-    setModelError(null);
     fetch(`/api/models/${modelId}`)
       .then((r) => r.json())
       .then((data: ModelInfo | { error: string }) => {

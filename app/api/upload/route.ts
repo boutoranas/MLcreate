@@ -19,6 +19,46 @@ type PythonResult = {
   raw_preview: string;
 };
 
+function parseCsvHeader(buffer: Buffer): string[] {
+  const text = buffer.toString("utf8");
+  const header: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (char === "\"") {
+      if (inQuotes && text[i + 1] === "\"") {
+        current += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && (char === "\n" || char === "\r")) {
+      if (char === "\r" && text[i + 1] === "\n") i += 1;
+      break;
+    }
+
+    if (!inQuotes && char === ",") {
+      header.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length > 0 || text.startsWith(",")) {
+    header.push(current.trim());
+  }
+
+  return header.map((column) => column.replace(/^"|"$/g, "").trim()).filter(Boolean);
+}
+
 async function uploadToS3(buffer: Buffer, jobId: string, filename: string): Promise<string | null> {
   const bucket = process.env.S3_BUCKET;
   if (!bucket) return null;
@@ -38,7 +78,8 @@ async function publishUploadRequest(
   filename: string,
   jobId: string,
   taskType: string,
-  modelName: string
+  modelName: string,
+  targetColumn: string
 ): Promise<PythonResult> {
   const queueUrl = process.env.SQS_QUEUE_CSV_UPLOAD_REQUESTED ?? "cloudml-csv-upload-requested";
   const relativeCsvPath = localCsvPath
@@ -53,6 +94,7 @@ async function publishUploadRequest(
     filename,
     task_type: taskType,
     model_type: taskType,
+    target_column: targetColumn,
     timestamp: new Date().toISOString(),
   };
 
@@ -84,6 +126,7 @@ export async function POST(request: Request) {
   const file = formData.get("file");
   const taskTypeRaw = formData.get("task_type");
   const modelNameRaw = formData.get("model_name");
+  const targetColumnRaw = formData.get("target_column");
 
   const taskType =
     typeof taskTypeRaw === "string" && taskTypeRaw.toLowerCase() === "regression"
@@ -101,9 +144,27 @@ export async function POST(request: Request) {
     typeof modelNameRaw === "string" && modelNameRaw.trim()
       ? modelNameRaw.trim()
       : file.name.replace(/\.csv$/i, "");
+  const targetColumn =
+    typeof targetColumnRaw === "string" && targetColumnRaw.trim()
+      ? targetColumnRaw.trim()
+      : "";
 
   const jobId = uuidv4();
   const buffer = Buffer.from(await file.arrayBuffer());
+  const csvColumns = parseCsvHeader(buffer);
+
+  if (csvColumns.length === 0) {
+    return Response.json({ error: "CSV header row is missing or could not be parsed." }, { status: 400 });
+  }
+  if (!targetColumn) {
+    return Response.json({ error: "Missing target column." }, { status: 400 });
+  }
+  if (!csvColumns.includes(targetColumn)) {
+    return Response.json({ error: `Target column '${targetColumn}' was not found in the CSV header.` }, { status: 400 });
+  }
+  if (csvColumns.filter((column) => column !== targetColumn).length === 0) {
+    return Response.json({ error: "CSV must contain at least one feature column besides the target column." }, { status: 400 });
+  }
 
   // Upload to S3 (required for cloud; skipped gracefully if S3_BUCKET not set)
   const s3CsvKey = await uploadToS3(buffer, jobId, file.name);
@@ -120,15 +181,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await publishUploadRequest(localCsvPath, s3CsvKey, file.name, jobId, taskType, modelName);
+    const result = await publishUploadRequest(localCsvPath, s3CsvKey, file.name, jobId, taskType, modelName, targetColumn);
 
     const pool = getPool();
     if (pool) {
+      await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS target_column TEXT`);
       await pool.query(
-        `INSERT INTO jobs (job_id, model_name, task_type, status, user_id, created_at)
-         VALUES ($1, $2, $3, 'queued', $4, now())
-         ON CONFLICT (job_id) DO UPDATE SET status = 'queued'`,
-        [jobId, modelName, taskType, userId]
+        `INSERT INTO jobs (job_id, model_name, task_type, target_column, status, user_id, created_at)
+         VALUES ($1, $2, $3, $4, 'queued', $5, now())
+         ON CONFLICT (job_id) DO UPDATE SET status = 'queued', target_column = EXCLUDED.target_column`,
+        [jobId, modelName, taskType, targetColumn, userId]
       );
     }
 
@@ -140,6 +202,7 @@ export async function POST(request: Request) {
       filename: file.name,
       size: file.size,
       task_type: taskType,
+      target_column: targetColumn,
       result,
     });
   } catch (error) {

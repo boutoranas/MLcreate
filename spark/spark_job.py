@@ -1,6 +1,6 @@
 """Simple PySpark preprocessing job: read CSV, basic cleaning, write Parquet.
 
-Usage: python spark_job.py <input_csv> <output_parquet>
+Usage: python spark_job.py <input_csv> <output_parquet> <target_column>
 """
 import os
 import subprocess
@@ -92,16 +92,18 @@ def build_spark_session():
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: python spark_job.py <input_csv> <output_parquet>")
+    if len(sys.argv) < 4:
+        print("Usage: python spark_job.py <input_csv> <output_parquet> <target_column>")
         sys.exit(1)
     input_csv = sys.argv[1]
     output_parquet = sys.argv[2]
+    target_column = sys.argv[3]
     spark = build_spark_session().getOrCreate()
     df = spark.read.option("header", True).option("inferSchema", True).csv(input_csv)
-    # Basic cleaning: drop rows where label is null, drop duplicate ids if present
-    if 'label' in df.columns:
-        df = df.filter(col('label').isNotNull())
+    if target_column not in df.columns:
+        raise ValueError(f"Target column '{target_column}' not found in CSV")
+    # Basic cleaning: drop rows where target is null, drop duplicate ids if present
+    df = df.filter(col(target_column).isNotNull())
     if 'id' in df.columns:
         df = df.dropDuplicates(['id'])
     # TODO: add encoding, imputation, scaling
@@ -112,4 +114,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

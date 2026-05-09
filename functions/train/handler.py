@@ -24,7 +24,6 @@ except ImportError:
 
 try:
     from pyspark.sql import SparkSession
-    from pyspark.ml import Pipeline
     from pyspark.ml.feature import VectorAssembler
     from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
     from pyspark.ml.evaluation import MulticlassClassificationEvaluator, RegressionEvaluator
@@ -73,7 +72,7 @@ class MeanRegressor:
         return [self.mean_value] * len(X)
 
 
-def train_model_spark(processed_path, model_out_path, model_type="classification"):
+def train_model_spark(processed_path, model_out_path, target_column, model_type="classification"):
     """Train a distributed model using Spark MLlib."""
     if not SPARK_AVAILABLE:
         raise ImportError("Spark MLlib not available; cannot use distributed training")
@@ -89,9 +88,13 @@ def train_model_spark(processed_path, model_out_path, model_type="classification
         df = spark.read.parquet(processed_path)
         print(f"[Train] Loaded parquet with {df.count()} rows")
         
-        # Use same ignore logic as local training
-        ignore_cols = {"label", "target", "prediction", "id"}
+        if target_column not in df.columns:
+            raise ValueError(f"Target column '{target_column}' not found in processed data")
+
+        ignore_cols = {target_column, "prediction", "id"}
         feature_cols = [col for col in df.columns if col not in ignore_cols]
+        if not feature_cols:
+            raise ValueError("No feature columns remain after removing the target column")
         print(f"[Train] Using features: {feature_cols}")
         
         # Assemble features into a single vector column
@@ -109,14 +112,14 @@ def train_model_spark(processed_path, model_out_path, model_type="classification
         if model_type == "regression":
             model = SparkXGBRegressor(
                 features_col="features",
-                label_col="label",
+                label_col=target_column,
                 num_round=100,
                 max_depth=6,
                 learning_rate=0.1,
                 seed=42
             )
             evaluator = RegressionEvaluator(
-                labelCol="label",
+                labelCol=target_column,
                 predictionCol="prediction",
                 metricName="rmse"
             )
@@ -124,14 +127,14 @@ def train_model_spark(processed_path, model_out_path, model_type="classification
         else:
             model = SparkXGBClassifier(
                 features_col="features",
-                label_col="label",
+                label_col=target_column,
                 num_round=100,
                 max_depth=6,
                 learning_rate=0.1,
                 seed=42
             )
             evaluator = MulticlassClassificationEvaluator(
-                labelCol="label",
+                labelCol=target_column,
                 predictionCol="prediction",
                 metricName="accuracy"
             )
@@ -148,17 +151,17 @@ def train_model_spark(processed_path, model_out_path, model_type="classification
         if model_type == "regression":
             # Compute all regression metrics
             mse_evaluator = RegressionEvaluator(
-                labelCol="label",
+                labelCol=target_column,
                 predictionCol="prediction",
                 metricName="mse"
             )
             rmse_evaluator = RegressionEvaluator(
-                labelCol="label",
+                labelCol=target_column,
                 predictionCol="prediction",
                 metricName="rmse"
             )
             r2_evaluator = RegressionEvaluator(
-                labelCol="label",
+                labelCol=target_column,
                 predictionCol="prediction",
                 metricName="r2"
             )
@@ -189,11 +192,18 @@ def train_model_spark(processed_path, model_out_path, model_type="classification
             "spark_path": model_spark_path,
             "feature_cols": feature_cols,
             "task_type": model_type,
+            "target_column": target_column,
         }
         with open(model_out_path + ".meta", "w") as f:
             json.dump(metadata, f)
         
-        return {"model_path": model_out_path, "metrics": metrics, "model_type": model_type}
+        return {
+            "model_path": model_out_path,
+            "metrics": metrics,
+            "model_type": model_type,
+            "feature_cols": feature_cols,
+            "target_column": target_column,
+        }
     
     finally:
         spark.stop()
@@ -231,33 +241,37 @@ def compute_metrics(y_true, y_pred, model_type="classification"):
     }
 
 
-def load_parquet_training_data(processed_path):
-    ignore_cols = {"label", "target", "prediction", "id"} 
+def load_parquet_training_data(processed_path, target_column):
+    ignore_cols = {target_column, "prediction", "id"}
     try:
         import pandas as pd
 
         df = pd.read_parquet(processed_path)
-        if 'label' not in df.columns:
-            raise ValueError('label column not found')
+        if target_column not in df.columns:
+            raise ValueError(f"target column not found: {target_column}")
         feature_cols = [c for c in df.columns if c not in ignore_cols]
+        if not feature_cols:
+            raise ValueError("No feature columns remain after removing the target column")
         X = df[feature_cols]
-        y = df['label']
-        return X, y
+        y = df[target_column]
+        return X, y, feature_cols
     except Exception:
         import pyarrow.parquet as pq
 
         table = pq.read_table(processed_path)
-        if 'label' not in table.column_names:
-            raise ValueError('label column not found')
+        if target_column not in table.column_names:
+            raise ValueError(f"target column not found: {target_column}")
         data = table.to_pydict()
         feature_names = [c for c in table.column_names if c not in ignore_cols]
+        if not feature_names:
+            raise ValueError("No feature columns remain after removing the target column")
         X = [list(values) for values in zip(*(data[name] for name in feature_names))] if feature_names else [[] for _ in range(table.num_rows)]
-        y = data['label']
-        return X, y
+        y = data[target_column]
+        return X, y, feature_names
 
 
-def train_model(processed_path, model_out_path, model_type="classification"):
-    X, y = load_parquet_training_data(processed_path)
+def train_model(processed_path, model_out_path, target_column, model_type="classification"):
+    X, y, feature_cols = load_parquet_training_data(processed_path, target_column)
     stratify_y = y if hasattr(y, "nunique") and y.nunique() > 1 else None
     try:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -298,7 +312,21 @@ def train_model(processed_path, model_out_path, model_type="classification"):
     predictions = clf.predict(X_test)
     metrics = compute_metrics(y_test, predictions, model_type=model_type)
     joblib.dump(clf, model_out_path)
-    return {"model_path": model_out_path, "metrics": metrics, "model_type": model_type}
+    metadata = {
+        "model_type": "joblib",
+        "feature_cols": feature_cols,
+        "task_type": model_type,
+        "target_column": target_column,
+    }
+    with open(model_out_path + ".meta", "w") as f:
+        json.dump(metadata, f)
+    return {
+        "model_path": model_out_path,
+        "metrics": metrics,
+        "model_type": model_type,
+        "feature_cols": feature_cols,
+        "target_column": target_column,
+    }
 
 
 def publish_message(message, queue_env="SQS_QUEUE_TRAINING_COMPLETE"):
@@ -348,10 +376,13 @@ def main():
         msg = json.load(f)
     processed_path = msg.get('processed_path')
     job_id = msg.get('job_id')
+    target_column = msg.get('target_column')
     model_type = (cli_model_type or msg.get('model_type') or msg.get('input_type') or 'classification').lower()
     if model_type not in {'classification', 'regression'}:
         print(f"Unknown model type '{model_type}', defaulting to classification")
         model_type = 'classification'
+    if not target_column:
+        raise ValueError("target_column is required for training")
     models_dir = os.environ.get('MODELS_DIR', os.path.join(os.getcwd(), 'models'))
     os.makedirs(models_dir, exist_ok=True)
     model_out_path = os.path.join(models_dir, f"{job_id}.pkl")
@@ -368,13 +399,13 @@ def main():
     try:
         if SPARK_AVAILABLE:
             print(f"[Train] Attempting distributed Spark MLlib training for {model_type}...")
-            result = train_model_spark(processed_path, model_out_path, model_type=model_type)
+            result = train_model_spark(processed_path, model_out_path, target_column, model_type=model_type)
             used_spark = True
         else:
             raise ImportError("Spark MLlib not available")
     except Exception as spark_exc:
         print(f"[Train] Spark training unavailable ({spark_exc}); falling back to local training")
-        result = train_model(processed_path, model_out_path, model_type=model_type)
+        result = train_model(processed_path, model_out_path, target_column, model_type=model_type)
 
     # Upload model to S3
     s3_model_path = None
@@ -389,6 +420,9 @@ def main():
         else:
             if os.path.exists(model_out_path):
                 s3_model_path = s3_utils.upload_file(model_out_path, f"models/{job_id}.pkl")
+            meta_path = model_out_path + ".meta"
+            if os.path.exists(meta_path):
+                s3_utils.upload_file(meta_path, f"models/{job_id}.pkl.meta")
 
     record_metadata(os.environ.get('DATABASE_URL'), job_id, model_out_path)
     done_msg = {
@@ -396,6 +430,8 @@ def main():
         'model_path': model_out_path,
         's3_model_path': s3_model_path,
         'model_type': model_type,
+        'target_column': target_column,
+        'feature_cols': result.get('feature_cols') if result else None,
         'training_mode': 'distributed_spark' if used_spark else 'local',
         'metrics': result.get('metrics') if result else None,
         'timestamp': datetime.utcnow().isoformat() + 'Z'

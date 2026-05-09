@@ -1,6 +1,6 @@
 """Ingest handler (OpenFaaS-style) - CLI helper for local testing.
 
-Usage (local): python handler.py <csv_path> [job_id] [task_type]
+Usage (local): python handler.py <csv_path> [job_id] [task_type] [s3_csv_key] [target_column]
 Environment: KAFKA_BOOTSTRAP for kafka address
 """
 import os
@@ -43,12 +43,13 @@ def publish_message(message, queue_env="SQS_QUEUE_DATASET_UPLOADED"):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python handler.py <csv_path> [job_id] [task_type]")
+        print("Usage: python handler.py <csv_path> [job_id] [task_type] [s3_csv_key] [target_column]")
         sys.exit(1)
     csv_path = sys.argv[1]
     incoming_job_id = sys.argv[2] if len(sys.argv) > 2 else None
     task_type = (sys.argv[3] if len(sys.argv) > 3 else os.environ.get("TASK_TYPE", "classification")).lower()
     s3_csv_key = sys.argv[4] if len(sys.argv) > 4 else None
+    target_column = sys.argv[5] if len(sys.argv) > 5 else os.environ.get("TARGET_COLUMN")
     # Convert to absolute path for unambiguous resolution
     csv_path = os.path.abspath(csv_path)
 
@@ -112,6 +113,7 @@ def main():
         "s3_csv_key": s3_csv_key,
         "task_type": task_type,
         "model_type": task_type,
+        "target_column": target_column,
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "row_count": row_count,
         "column_count": len(columns),

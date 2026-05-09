@@ -35,12 +35,13 @@ def main():
                     csv_path = msg.get('csv_path')
                     s3_csv_key = msg.get('s3_csv_key') or ''
                     task_type = msg.get('task_type') or msg.get('model_type') or 'classification'
+                    target_column = msg.get('target_column') or ''
 
-                    print(f"\n[Ingest] Received job {job_id}, csv_path={csv_path}, s3_csv_key={s3_csv_key}, task_type={task_type}")
+                    print(f"\n[Ingest] Received job {job_id}, csv_path={csv_path}, s3_csv_key={s3_csv_key}, task_type={task_type}, target_column={target_column}")
 
                     handler_path = os.path.join(os.getcwd(), 'functions', 'ingest', 'handler.py')
-                    print(f"[Ingest] Running: python {handler_path} {csv_path} {job_id} {task_type} {s3_csv_key}")
-                    subprocess.check_call(['python', handler_path, csv_path, job_id, task_type, s3_csv_key])
+                    print(f"[Ingest] Running: python {handler_path} {csv_path} {job_id} {task_type} {s3_csv_key} {target_column}")
+                    subprocess.check_call(['python', handler_path, csv_path, job_id, task_type, s3_csv_key, target_column])
 
                     sqs_utils.delete_message(queue_url, receipt)
                     print(f"[Ingest] ✓ Job {job_id} completed")

@@ -10,6 +10,7 @@ type UploadResponse = {
   backend: string;
   filename: string;
   size: number;
+  target_column?: string;
   result: {
     row_count: number;
     column_count: number;
@@ -40,9 +41,50 @@ type JobStatusResponse = {
 
 const STATUS_STEPS = ["queued", "ingested", "preprocessed", "training", "completed"] as const;
 
+function parseCsvHeader(text: string): string[] {
+  const header: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (char === "\"") {
+      if (inQuotes && text[i + 1] === "\"") {
+        current += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && (char === "\n" || char === "\r")) {
+      if (char === "\r" && text[i + 1] === "\n") i += 1;
+      break;
+    }
+
+    if (!inQuotes && char === ",") {
+      header.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length > 0 || text.startsWith(",")) {
+    header.push(current.trim());
+  }
+
+  return header.map((column) => column.replace(/^"|"$/g, "").trim()).filter(Boolean);
+}
+
 export default function CreatePage() {
   const [modelName, setModelName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [targetColumn, setTargetColumn] = useState("");
   const [taskType, setTaskType] = useState<string>("classification");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +93,39 @@ export default function CreatePage() {
 
   const handleTaskTypeChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setTaskType(event.target.value);
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    setResponse(null);
+    setJobStatus(null);
+
+    if (!file) {
+      setCsvColumns([]);
+      setTargetColumn("");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const columns = parseCsvHeader(text);
+
+      if (columns.length < 2) {
+        setCsvColumns(columns);
+        setTargetColumn(columns[0] ?? "");
+        setError("CSV must include a header row with at least one feature column and one target column.");
+        return;
+      }
+
+      setCsvColumns(columns);
+      setTargetColumn((current) => (current && columns.includes(current) ? current : columns[columns.length - 1]));
+      setError(null);
+    } catch {
+      setCsvColumns([]);
+      setTargetColumn("");
+      setError("Could not read the CSV header. Please upload a valid CSV file.");
+    }
   };
 
   useEffect(() => {
@@ -109,6 +184,18 @@ export default function CreatePage() {
       setError("Select a CSV file first.");
       return;
     }
+    if (!targetColumn) {
+      setError("Select the target column.");
+      return;
+    }
+    if (!csvColumns.includes(targetColumn)) {
+      setError("The selected target column is not present in the CSV header.");
+      return;
+    }
+    if (csvColumns.filter((column) => column !== targetColumn).length === 0) {
+      setError("The CSV must include at least one feature column besides the target column.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -119,6 +206,7 @@ export default function CreatePage() {
     formData.append("file", selectedFile);
     formData.append("task_type", taskType);
     formData.append("model_name", modelName.trim() || selectedFile.name.replace(/\.csv$/i, ""));
+    formData.append("target_column", targetColumn);
 
     try {
       const uploadResponse = await fetch("/api/upload", {
@@ -188,11 +276,39 @@ export default function CreatePage() {
               type="file"
               accept=".csv,text/csv"
               className="mt-2 block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-700 file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-700"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              onChange={handleFileChange}
             />
             {selectedFile && (
               <p className="mt-1 text-xs text-slate-500">
                 {selectedFile.name} ({selectedFile.size.toLocaleString()} bytes)
+              </p>
+            )}
+          </div>
+
+          <div className="w-80">
+            <label htmlFor="target-column" className="block text-sm font-medium text-slate-700">
+              Target column
+            </label>
+            <select
+              id="target-column"
+              value={targetColumn}
+              onChange={(event) => setTargetColumn(event.target.value)}
+              disabled={csvColumns.length === 0}
+              className="mt-2 block w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+            >
+              {csvColumns.length === 0 ? (
+                <option value="">Upload a CSV first</option>
+              ) : (
+                csvColumns.map((column) => (
+                  <option key={column} value={column}>
+                    {column}
+                  </option>
+                ))
+              )}
+            </select>
+            {csvColumns.length > 0 && (
+              <p className="mt-1 text-xs text-slate-500">
+                The selected column will be used as the training target.
               </p>
             )}
           </div>

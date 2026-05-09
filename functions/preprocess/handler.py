@@ -22,8 +22,14 @@ except ImportError:
     sqs_utils = None
 
 
-def run_spark(csv_path, out_path):
-    cmd = ["python", os.path.join(os.path.dirname(__file__), "..", "..", "spark", "spark_job.py"), csv_path, out_path]
+def run_spark(csv_path, out_path, target_column):
+    cmd = [
+        "python",
+        os.path.join(os.path.dirname(__file__), "..", "..", "spark", "spark_job.py"),
+        csv_path,
+        out_path,
+        target_column,
+    ]
     subprocess.check_call(cmd)
 
 
@@ -77,6 +83,7 @@ def main():
     s3_csv_key = msg.get("s3_csv_key")
     job_id = msg.get("job_id")
     task_type = (msg.get("task_type") or msg.get("model_type") or "classification").lower()
+    target_column = msg.get("target_column")
     processed_dir = os.environ.get("PROCESSED_DIR", os.path.join(os.getcwd(), "processed"))
     os.makedirs(processed_dir, exist_ok=True)
     out_path = os.path.join(processed_dir, f"{job_id}.parquet")
@@ -95,7 +102,7 @@ def main():
         os.makedirs(os.path.dirname(csv_path), exist_ok=True)
         s3_utils.download_file(key, csv_path)
 
-    run_spark(csv_path, out_path)
+    run_spark(csv_path, out_path, target_column)
     n_rows, features = read_parquet_metadata(out_path)
 
     s3_processed_path = None
@@ -113,6 +120,7 @@ def main():
         "features": features,
         "task_type": task_type,
         "model_type": task_type,
+        "target_column": target_column,
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
     publish_message(done_msg)

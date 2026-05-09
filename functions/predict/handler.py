@@ -9,7 +9,6 @@ import sys
 import json
 from datetime import datetime
 import joblib
-import csv
 
 _ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if _ROOT not in sys.path:
@@ -32,8 +31,25 @@ except Exception as e:
 import re
 
 
+def resolve_feature_columns(all_columns, metadata):
+    configured = metadata.get("feature_cols") or []
+    if configured:
+        missing = [col for col in configured if col not in all_columns]
+        if missing:
+            raise ValueError(f"Prediction CSV is missing required feature columns: {missing}")
+        return configured
 
-def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
+    target_column = metadata.get("target_column")
+    ignore_cols = {"prediction", "id"}
+    if target_column:
+        ignore_cols.add(target_column)
+    else:
+        ignore_cols.update({"label", "target"})
+    return [c for c in all_columns if c not in ignore_cols]
+
+
+
+def predict_with_spark(csv_path, spark_model_dir, metadata, model_type="classification"):
     if not SPARK_AVAILABLE:
         raise ImportError("Spark not available")
 
@@ -93,9 +109,10 @@ def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
 
         df = spark.read.option("header", "true").option("inferSchema", "true").csv(csv_path)
         print(f"[Predict] Loaded CSV with {df.count()} rows")
-        
-        ignore_cols = {"label", "target", "prediction", "id"}
-        feature_cols = [c for c in df.columns if c.lower() not in ignore_cols]
+
+        feature_cols = resolve_feature_columns(df.columns, metadata)
+        if not feature_cols:
+            raise ValueError("No feature columns available for prediction")
         print(f"[Predict] Assembling features from columns: {feature_cols}")
 
         assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
@@ -127,7 +144,7 @@ def predict_with_spark(csv_path, spark_model_dir, model_type="classification"):
         spark.stop()
 
 
-def predict_with_joblib(csv_path, model_path, model_type="classification"):
+def predict_with_joblib(csv_path, model_path, metadata, model_type="classification"):
     """Load joblib model and make predictions on CSV data."""
     try:
         import pandas as pd
@@ -141,9 +158,13 @@ def predict_with_joblib(csv_path, model_path, model_type="classification"):
     # Read CSV
     df = pd.read_parquet(csv_path) if csv_path.endswith('.parquet') else pd.read_csv(csv_path)
     print(f"[Predict] Loaded CSV with {len(df)} rows and columns: {list(df.columns)}")
-    
+
+    feature_cols = resolve_feature_columns(list(df.columns), metadata)
+    if not feature_cols:
+        raise ValueError("No feature columns available for prediction")
+
     # Make predictions
-    predictions = model.predict(df)
+    predictions = model.predict(df[feature_cols])
     print(f"[Predict] Made predictions on {len(predictions)} samples")
     
     # Add predictions column to dataframe
@@ -167,15 +188,6 @@ def predict_with_joblib(csv_path, model_path, model_type="classification"):
         "prediction_mode": "joblib",
         "output_csv": output_csv
     }
-
-
-def load_model_metadata(model_path):
-    """Load model metadata."""
-    metadata_path = model_path + ".meta"
-    if os.path.exists(metadata_path):
-        with open(metadata_path, "r") as f:
-            return json.load(f)
-    return {}
 
 
 def predict(csv_path, model_id, model_type="classification"):
@@ -218,18 +230,18 @@ def predict(csv_path, model_id, model_type="classification"):
     if SPARK_AVAILABLE and os.path.isdir(spark_model_path):
         print(f"[Predict] Found Spark model at {spark_model_path}")
         try:
-            result = predict_with_spark(csv_path, spark_model_path, model_type=saved_model_type)
+            result = predict_with_spark(csv_path, spark_model_path, metadata, model_type=saved_model_type)
             used_spark = True
         except Exception as spark_exc:
             print(f"[Predict] Spark prediction failed: {spark_exc}; falling back to joblib")
             if os.path.exists(joblib_model_path):
                 print(f"[Predict] Using joblib model at {joblib_model_path}")
-                result = predict_with_joblib(csv_path, joblib_model_path, model_type=saved_model_type)
+                result = predict_with_joblib(csv_path, joblib_model_path, metadata, model_type=saved_model_type)
             else:
                 raise
     elif os.path.exists(joblib_model_path):
         print(f"[Predict] Found joblib model at {joblib_model_path}")
-        result = predict_with_joblib(csv_path, joblib_model_path, model_type=saved_model_type)
+        result = predict_with_joblib(csv_path, joblib_model_path, metadata, model_type=saved_model_type)
     else:
         raise FileNotFoundError(f"No model found for ID {clean_model_id}. Checked {spark_model_path} and {joblib_model_path}")
     
