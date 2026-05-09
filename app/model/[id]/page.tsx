@@ -9,6 +9,8 @@ type ModelInfo = {
   task_type: string | null;
   created_at: string;
   model_path: string | null;
+  target_column: string | null;
+  feature_cols: string[];
 };
 
 type PredictResponse = {
@@ -37,8 +39,11 @@ export default function ModelPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [predictError, setPredictError] = useState<string | null>(null);
-  const [predictResponse, setPredictResponse] = useState<PredictResponse | null>(null);
-  const [predictStatus, setPredictStatus] = useState<PredictStatus | null>(null);
+  const [predictResponse, setPredictResponse] =
+    useState<PredictResponse | null>(null);
+  const [predictStatus, setPredictStatus] = useState<PredictStatus | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!predictResponse || predictResponse.status !== "queued") return;
@@ -90,7 +95,10 @@ export default function ModelPage() {
     formData.append("model_type", model?.task_type ?? "classification");
 
     try {
-      const res = await fetch("/api/predict", { method: "POST", body: formData });
+      const res = await fetch("/api/predict", {
+        method: "POST",
+        body: formData,
+      });
       const data = (await res.json()) as PredictResponse | { error?: string };
 
       if (!res.ok) {
@@ -100,7 +108,9 @@ export default function ModelPage() {
 
       setPredictResponse(data as PredictResponse);
     } catch (err) {
-      setPredictError(err instanceof Error ? err.message : "Prediction failed.");
+      setPredictError(
+        err instanceof Error ? err.message : "Prediction failed.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -126,39 +136,74 @@ export default function ModelPage() {
     <main className="min-h-screen px-6 py-10">
       <div className="mx-auto w-full max-w-3xl flex flex-col gap-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-400">Model</p>
+          <p className="text-xs font-mono uppercase tracking-widest text-slate-400">
+            Model
+          </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
             {model?.model_name ?? "Unnamed Model"}
           </h1>
           <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
             <div>
               <dt className="text-slate-400 inline">Task · </dt>
-              <dd className="inline text-slate-700 capitalize">{model?.task_type ?? "—"}</dd>
+              <dd className="inline text-slate-700 capitalize">
+                {model?.task_type ?? "—"}
+              </dd>
             </div>
             <div>
               <dt className="text-slate-400 inline">Created · </dt>
               <dd className="inline text-slate-700">
-                {model?.created_at ? new Date(model.created_at).toLocaleDateString() : "—"}
+                {model?.created_at
+                  ? new Date(model.created_at).toLocaleDateString()
+                  : "—"}
               </dd>
             </div>
             <div>
               <dt className="text-slate-400 inline">ID · </dt>
-              <dd className="inline text-slate-500 font-mono text-xs">{model?.job_id}</dd>
+              <dd className="inline text-slate-500 font-mono text-xs">
+                {model?.job_id}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-400 inline">Target · </dt>
+              <dd className="inline text-slate-700">
+                {model?.target_column ?? "—"}
+              </dd>
             </div>
           </dl>
+          <div className="mt-4 rounded-xl bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Expected Schema
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Prediction CSVs should match this model&apos;s training features.
+            </p>
+            <div className="mt-3">
+              <p className="text-xs text-slate-400">Feature columns</p>
+              <p className="mt-1 text-sm text-slate-700 break-words">
+                {model?.feature_cols?.length
+                  ? model.feature_cols.join(", ")
+                  : "No saved feature metadata"}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Make predictions</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Make predictions
+            </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Upload a CSV with the same columns used during training.
+              Upload a CSV with the same feature columns used during training.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="predict-csv" className="block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="predict-csv"
+                className="block text-sm font-medium text-slate-700"
+              >
                 CSV file
               </label>
               <input
@@ -170,7 +215,8 @@ export default function ModelPage() {
               />
               {selectedFile && (
                 <p className="mt-1 text-xs text-slate-500">
-                  {selectedFile.name} ({selectedFile.size.toLocaleString()} bytes)
+                  {selectedFile.name} ({selectedFile.size.toLocaleString()}{" "}
+                  bytes)
                 </p>
               )}
             </div>
@@ -193,7 +239,9 @@ export default function ModelPage() {
           {predictResponse && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-3">
               <p className="text-sm font-medium text-slate-700">
-                {predictResponse.status === "queued" ? "Prediction queued" : "Error"}
+                {predictResponse.status === "queued"
+                  ? "Prediction queued"
+                  : "Error"}
               </p>
               {predictResponse.status === "queued" ? (
                 <>
@@ -205,9 +253,9 @@ export default function ModelPage() {
                       </dd>
                     </div>
                   </dl>
-                  <p className="text-xs text-slate-500">{predictResponse.message}</p>
 
-                  {predictStatus?.status === "ready" && predictStatus.download_url ? (
+                  {predictStatus?.status === "ready" &&
+                  predictStatus.download_url ? (
                     <a
                       href={predictStatus.download_url}
                       className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500"

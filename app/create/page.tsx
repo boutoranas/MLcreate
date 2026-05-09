@@ -39,7 +39,13 @@ type JobStatusResponse = {
   } | null;
 };
 
-const STATUS_STEPS = ["queued", "ingested", "preprocessed", "training", "completed"] as const;
+const STATUS_STEPS = [
+  "queued",
+  "ingested",
+  "preprocessed",
+  "training",
+  "completed",
+] as const;
 
 function parseCsvHeader(text: string): string[] {
   const header: string[] = [];
@@ -49,9 +55,9 @@ function parseCsvHeader(text: string): string[] {
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
 
-    if (char === "\"") {
-      if (inQuotes && text[i + 1] === "\"") {
-        current += "\"";
+    if (char === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        current += '"';
         i += 1;
       } else {
         inQuotes = !inQuotes;
@@ -77,7 +83,9 @@ function parseCsvHeader(text: string): string[] {
     header.push(current.trim());
   }
 
-  return header.map((column) => column.replace(/^"|"$/g, "").trim()).filter(Boolean);
+  return header
+    .map((column) => column.replace(/^"|"$/g, "").trim())
+    .filter(Boolean);
 }
 
 export default function CreatePage() {
@@ -114,17 +122,25 @@ export default function CreatePage() {
       if (columns.length < 2) {
         setCsvColumns(columns);
         setTargetColumn(columns[0] ?? "");
-        setError("CSV must include a header row with at least one feature column and one target column.");
+        setError(
+          "CSV must include a header row with at least one feature column and one target column.",
+        );
         return;
       }
 
       setCsvColumns(columns);
-      setTargetColumn((current) => (current && columns.includes(current) ? current : columns[columns.length - 1]));
+      setTargetColumn((current) =>
+        current && columns.includes(current)
+          ? current
+          : columns[columns.length - 1],
+      );
       setError(null);
     } catch {
       setCsvColumns([]);
       setTargetColumn("");
-      setError("Could not read the CSV header. Please upload a valid CSV file.");
+      setError(
+        "Could not read the CSV header. Please upload a valid CSV file.",
+      );
     }
   };
 
@@ -148,7 +164,9 @@ export default function CreatePage() {
               column_count: statusData.result?.column_count ?? 0,
               columns: statusData.result?.columns ?? [],
               preview: (statusData.result?.preview as string[][]) ?? [],
-              raw_preview: statusData.result?.raw_preview ?? `Job queued: ${statusData.job_id}`,
+              raw_preview:
+                statusData.result?.raw_preview ??
+                `Job queued: ${statusData.job_id}`,
             };
             if (prev) return { ...prev, result: resultPayload };
             return {
@@ -193,7 +211,9 @@ export default function CreatePage() {
       return;
     }
     if (csvColumns.filter((column) => column !== targetColumn).length === 0) {
-      setError("The CSV must include at least one feature column besides the target column.");
+      setError(
+        "The CSV must include at least one feature column besides the target column.",
+      );
       return;
     }
 
@@ -205,7 +225,10 @@ export default function CreatePage() {
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("task_type", taskType);
-    formData.append("model_name", modelName.trim() || selectedFile.name.replace(/\.csv$/i, ""));
+    formData.append(
+      "model_name",
+      modelName.trim() || selectedFile.name.replace(/\.csv$/i, ""),
+    );
     formData.append("target_column", targetColumn);
 
     try {
@@ -214,7 +237,9 @@ export default function CreatePage() {
         body: formData,
       });
 
-      const data = (await uploadResponse.json()) as UploadResponse | { error?: string };
+      const data = (await uploadResponse.json()) as
+        | UploadResponse
+        | { error?: string };
 
       if (!uploadResponse.ok) {
         const message = "error" in data ? data.error : undefined;
@@ -224,7 +249,9 @@ export default function CreatePage() {
       setResponse(data as UploadResponse);
     } catch (submissionError) {
       setError(
-        submissionError instanceof Error ? submissionError.message : "Upload failed."
+        submissionError instanceof Error
+          ? submissionError.message
+          : "Upload failed.",
       );
     } finally {
       setIsSubmitting(false);
@@ -239,12 +266,15 @@ export default function CreatePage() {
     <main className="min-h-screen px-6 py-10">
       <div className="mx-auto w-full max-w-3xl flex flex-col gap-8">
         <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-slate-400">New Model</p>
+          <p className="text-xs font-mono uppercase tracking-widest text-slate-400">
+            New Model
+          </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             Train a model on your CSV
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Upload a labelled CSV file. The pipeline will preprocess, train, and store your model.
+            Upload a labelled CSV file. The pipeline will preprocess, train, and
+            store your model.
           </p>
         </div>
 
@@ -253,7 +283,10 @@ export default function CreatePage() {
           className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm space-y-6"
         >
           <div>
-            <label htmlFor="model-name" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="model-name"
+              className="block text-sm font-medium text-slate-700"
+            >
               Model name
             </label>
             <input
@@ -267,7 +300,10 @@ export default function CreatePage() {
           </div>
 
           <div>
-            <label htmlFor="csv-upload" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="csv-upload"
+              className="block text-sm font-medium text-slate-700"
+            >
               Training CSV
             </label>
             <input
@@ -286,7 +322,10 @@ export default function CreatePage() {
           </div>
 
           <div className="w-80">
-            <label htmlFor="target-column" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="target-column"
+              className="block text-sm font-medium text-slate-700"
+            >
               Target column
             </label>
             <select
@@ -314,7 +353,10 @@ export default function CreatePage() {
           </div>
 
           <div className="w-64">
-            <label htmlFor="task-select" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="task-select"
+              className="block text-sm font-medium text-slate-700"
+            >
               Task type
             </label>
             <select
@@ -350,7 +392,9 @@ export default function CreatePage() {
                 <h2 className="text-lg font-semibold text-slate-900">
                   {response.model_name || "Model"}
                 </h2>
-                <p className="mt-0.5 text-xs text-slate-500 font-mono">{response.job_id}</p>
+                <p className="mt-0.5 text-xs text-slate-500 font-mono">
+                  {response.job_id}
+                </p>
               </div>
               {jobStatus?.status === "completed" && (
                 <Link
@@ -374,8 +418,8 @@ export default function CreatePage() {
                         i < currentStepIndex
                           ? "bg-green-100 text-green-700"
                           : i === currentStepIndex
-                          ? "bg-slate-950 text-white"
-                          : "bg-slate-100 text-slate-400"
+                            ? "bg-slate-950 text-white"
+                            : "bg-slate-100 text-slate-400"
                       }`}
                     >
                       {step}
@@ -393,18 +437,9 @@ export default function CreatePage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
                   Columns detected
                 </p>
-                <p className="text-sm text-slate-700">{response.result.columns.join(", ")}</p>
-              </div>
-            )}
-
-            {response.result.raw_preview && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">
-                  Preview
+                <p className="text-sm text-slate-700">
+                  {response.result.columns.join(", ")}
                 </p>
-                <pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-300">
-                  {response.result.raw_preview}
-                </pre>
               </div>
             )}
           </div>

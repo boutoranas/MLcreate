@@ -97,9 +97,10 @@ def main():
         sys.exit(1)
     input_csv = sys.argv[1]
     output_parquet = sys.argv[2]
-    target_column = sys.argv[3]
+    target_column = sys.argv[3].strip().lower()
     spark = build_spark_session().getOrCreate()
     df = spark.read.option("header", True).option("inferSchema", True).csv(input_csv)
+    df = df.toDF(*[column.strip().lower() for column in df.columns])
     if target_column not in df.columns:
         raise ValueError(f"Target column '{target_column}' not found in CSV")
     # Basic cleaning: drop rows where target is null, drop duplicate ids if present

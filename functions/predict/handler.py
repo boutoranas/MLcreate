@@ -48,6 +48,20 @@ def resolve_feature_columns(all_columns, metadata):
     return [c for c in all_columns if c not in ignore_cols]
 
 
+def normalize_column_names_pd(df):
+    df.columns = [str(column).strip().lower() for column in df.columns]
+    return df
+
+
+def resolve_prediction_column_name(existing_columns, metadata):
+    target_column = str(metadata.get("target_column") or "").strip().lower()
+    if not target_column:
+        return "prediction"
+    if target_column not in existing_columns:
+        return target_column
+    return f"{target_column}_predicted"
+
+
 
 def predict_with_spark(csv_path, spark_model_dir, metadata, model_type="classification"):
     if not SPARK_AVAILABLE:
@@ -108,6 +122,7 @@ def predict_with_spark(csv_path, spark_model_dir, metadata, model_type="classifi
             raise ValueError(f"Unsupported Spark model class: {class_name}")
 
         df = spark.read.option("header", "true").option("inferSchema", "true").csv(csv_path)
+        df = df.toDF(*[column.strip().lower() for column in df.columns])
         print(f"[Predict] Loaded CSV with {df.count()} rows")
 
         feature_cols = resolve_feature_columns(df.columns, metadata)
@@ -123,6 +138,9 @@ def predict_with_spark(csv_path, spark_model_dir, metadata, model_type="classifi
 
         drop_cols = [c for c in pred_pd.columns if c in {"features", "rawPrediction", "probability"}]
         pred_pd = pred_pd.drop(columns=drop_cols)
+        prediction_column = resolve_prediction_column_name(list(pred_pd.columns), metadata)
+        if "prediction" in pred_pd.columns and prediction_column != "prediction":
+            pred_pd = pred_pd.rename(columns={"prediction": prediction_column})
 
         predictions_dir = os.environ.get('PREDICTIONS_OUTPUT_DIR', os.path.join(os.getcwd(), 'data', 'predictions_output'))
         os.makedirs(predictions_dir, exist_ok=True)
@@ -157,6 +175,7 @@ def predict_with_joblib(csv_path, model_path, metadata, model_type="classificati
     
     # Read CSV
     df = pd.read_parquet(csv_path) if csv_path.endswith('.parquet') else pd.read_csv(csv_path)
+    df = normalize_column_names_pd(df)
     print(f"[Predict] Loaded CSV with {len(df)} rows and columns: {list(df.columns)}")
 
     feature_cols = resolve_feature_columns(list(df.columns), metadata)
@@ -168,7 +187,8 @@ def predict_with_joblib(csv_path, model_path, metadata, model_type="classificati
     print(f"[Predict] Made predictions on {len(predictions)} samples")
     
     # Add predictions column to dataframe
-    df['prediction'] = predictions
+    prediction_column = resolve_prediction_column_name(list(df.columns), metadata)
+    df[prediction_column] = predictions
     
     # Write predictions to CSV output file
     predictions_dir = os.environ.get('PREDICTIONS_OUTPUT_DIR', os.path.join(os.getcwd(), 'data', 'predictions_output'))

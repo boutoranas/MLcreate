@@ -76,6 +76,7 @@ def train_model_spark(processed_path, model_out_path, target_column, model_type=
     """Train a distributed model using Spark MLlib."""
     if not SPARK_AVAILABLE:
         raise ImportError("Spark MLlib not available; cannot use distributed training")
+    target_column = target_column.strip().lower()
     
     spark = SparkSession.builder \
         .appName("cloudml-train") \
@@ -242,6 +243,7 @@ def compute_metrics(y_true, y_pred, model_type="classification"):
 
 
 def load_parquet_training_data(processed_path, target_column):
+    target_column = target_column.strip().lower()
     ignore_cols = {target_column, "prediction", "id"}
     try:
         import pandas as pd
@@ -271,6 +273,7 @@ def load_parquet_training_data(processed_path, target_column):
 
 
 def train_model(processed_path, model_out_path, target_column, model_type="classification"):
+    target_column = target_column.strip().lower()
     X, y, feature_cols = load_parquet_training_data(processed_path, target_column)
     stratify_y = y if hasattr(y, "nunique") and y.nunique() > 1 else None
     try:
@@ -376,7 +379,7 @@ def main():
         msg = json.load(f)
     processed_path = msg.get('processed_path')
     job_id = msg.get('job_id')
-    target_column = msg.get('target_column')
+    target_column = (msg.get('target_column') or '').strip().lower()
     model_type = (cli_model_type or msg.get('model_type') or msg.get('input_type') or 'classification').lower()
     if model_type not in {'classification', 'regression'}:
         print(f"Unknown model type '{model_type}', defaulting to classification")
