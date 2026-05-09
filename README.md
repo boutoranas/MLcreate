@@ -1,3 +1,8 @@
+Group Members:
+
+- Anas Boutor, SID: 21010333, aboutor@connect.ust.hk
+- Almat Zhezbayev, SID: 20901779, azhezbayev@connect.ust.hk
+
 # MLcreate
 
 A cloud-native ML pipeline: upload a CSV, train a model (XGBoost/linear, optionally distributed via Spark), and run predictions — all through a Next.js web UI backed by AWS SQS, S3, and PostgreSQL running on EC2.
@@ -21,11 +26,11 @@ Browser (Next.js) → SQS → EC2 Docker consumers
 
 ## Prerequisites
 
-| Tool | Version |
-|------|---------|
-| Node.js | 18+ |
-| Docker + Docker Compose | any recent |
-| AWS Academy session (or IAM user) | — |
+| Tool                              | Version    |
+| --------------------------------- | ---------- |
+| Node.js                           | 18+        |
+| Docker + Docker Compose           | any recent |
+| AWS Academy session (or IAM user) | —          |
 
 ---
 
@@ -44,13 +49,13 @@ AWS Academy credentials expire per session. Repeat steps 1.1–1.3 each time you
 
 Create these five **Standard** queues (default settings are fine):
 
-| Queue name |
-|------------|
+| Queue name                     |
+| ------------------------------ |
 | `cloudml-csv-upload-requested` |
-| `cloudml-dataset-uploaded` |
-| `cloudml-preprocessing-done` |
-| `cloudml-predict-requested` |
-| `cloudml-training-complete` |
+| `cloudml-dataset-uploaded`     |
+| `cloudml-preprocessing-done`   |
+| `cloudml-predict-requested`    |
+| `cloudml-training-complete`    |
 
 Steps per queue: SQS console → **Create queue** → Standard → set name → **Create queue**.
 
@@ -156,21 +161,21 @@ The Next.js app can be deployed to Vercel while the consumers keep running on EC
 
 In the project → **Settings → Environment Variables**, add every variable from the table in section 9:
 
-| Variable | Value |
-|----------|-------|
-| `DATABASE_URL` | PostgreSQL URL pointing at your EC2 instance (see note below) |
-| `AWS_ACCESS_KEY_ID` | From AWS Academy |
-| `AWS_SECRET_ACCESS_KEY` | From AWS Academy |
-| `AWS_SESSION_TOKEN` | From AWS Academy |
-| `AWS_DEFAULT_REGION` | `us-east-1` |
-| `S3_BUCKET` | Your bucket name |
-| `SQS_QUEUE_CSV_UPLOAD_REQUESTED` | `cloudml-csv-upload-requested` |
-| `SQS_QUEUE_DATASET_UPLOADED` | `cloudml-dataset-uploaded` |
-| `SQS_QUEUE_PREPROCESSING_DONE` | `cloudml-preprocessing-done` |
-| `SQS_QUEUE_PREDICT_REQUESTED` | `cloudml-predict-requested` |
-| `SQS_QUEUE_TRAINING_COMPLETE` | `cloudml-training-complete` |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | From Clerk dashboard |
-| `CLERK_SECRET_KEY` | From Clerk dashboard |
+| Variable                            | Value                                                         |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `DATABASE_URL`                      | PostgreSQL URL pointing at your EC2 instance (see note below) |
+| `AWS_ACCESS_KEY_ID`                 | From AWS Academy                                              |
+| `AWS_SECRET_ACCESS_KEY`             | From AWS Academy                                              |
+| `AWS_SESSION_TOKEN`                 | From AWS Academy                                              |
+| `AWS_DEFAULT_REGION`                | `us-east-1`                                                   |
+| `S3_BUCKET`                         | Your bucket name                                              |
+| `SQS_QUEUE_CSV_UPLOAD_REQUESTED`    | `cloudml-csv-upload-requested`                                |
+| `SQS_QUEUE_DATASET_UPLOADED`        | `cloudml-dataset-uploaded`                                    |
+| `SQS_QUEUE_PREPROCESSING_DONE`      | `cloudml-preprocessing-done`                                  |
+| `SQS_QUEUE_PREDICT_REQUESTED`       | `cloudml-predict-requested`                                   |
+| `SQS_QUEUE_TRAINING_COMPLETE`       | `cloudml-training-complete`                                   |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | From Clerk dashboard                                          |
+| `CLERK_SECRET_KEY`                  | From Clerk dashboard                                          |
 
 After saving, go to **Deployments → Redeploy** (or push a new commit).
 
@@ -179,6 +184,7 @@ After saving, go to **Deployments → Redeploy** (or push a new commit).
 Vercel runs on Vercel's servers, so `localhost:5432` won't work. Two options:
 
 **Option A — expose EC2 postgres (simplest for Academy)**
+
 1. EC2 Security Group → add inbound rule: **PostgreSQL (5432)** from `0.0.0.0/0` (or restrict to Vercel IP ranges)
 2. Set `DATABASE_URL` in Vercel to:
    ```
@@ -191,6 +197,7 @@ Neon and Supabase both offer free-tier Postgres. Create a database, copy the con
 ### Updating AWS credentials on Vercel (each Academy session)
 
 AWS Academy tokens expire. Each new session:
+
 1. Copy the three new credential lines from AWS Details
 2. In Vercel → **Settings → Environment Variables** → update `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
 3. Redeploy (or push any commit to trigger a new build)
@@ -306,23 +313,23 @@ docker compose up -d train_consumer
 
 ## 9. Environment variables reference
 
-| Variable | Where used | Description |
-|----------|-----------|-------------|
-| `DATABASE_URL` | Next.js, train_consumer | SQLAlchemy-style PostgreSQL URL |
-| `AWS_ACCESS_KEY_ID` | All | AWS credential |
-| `AWS_SECRET_ACCESS_KEY` | All | AWS credential |
-| `AWS_SESSION_TOKEN` | All | Academy session token (rotate each session) |
-| `AWS_DEFAULT_REGION` | All | Default: `us-east-1` |
-| `S3_BUCKET` | All | Bucket for uploads, parquet, models, predictions |
-| `SQS_QUEUE_CSV_UPLOAD_REQUESTED` | Next.js upload API, ingest_consumer | First queue in the pipeline |
-| `SQS_QUEUE_DATASET_UPLOADED` | ingest_consumer, preprocess_consumer | After ingest |
-| `SQS_QUEUE_PREPROCESSING_DONE` | preprocess_consumer, train_consumer | After preprocessing |
-| `SQS_QUEUE_PREDICT_REQUESTED` | Next.js predict API, predict_consumer | Trigger prediction |
-| `SQS_QUEUE_TRAINING_COMPLETE` | train_consumer | Published after training |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Next.js client | Clerk publishable key |
-| `CLERK_SECRET_KEY` | Next.js server | Clerk secret key |
-| `MODELS_DIR` | train_consumer, predict_consumer | Local path inside container |
-| `PROCESSED_DIR` | preprocess_consumer, train_consumer | Local path inside container |
+| Variable                            | Where used                            | Description                                      |
+| ----------------------------------- | ------------------------------------- | ------------------------------------------------ |
+| `DATABASE_URL`                      | Next.js, train_consumer               | SQLAlchemy-style PostgreSQL URL                  |
+| `AWS_ACCESS_KEY_ID`                 | All                                   | AWS credential                                   |
+| `AWS_SECRET_ACCESS_KEY`             | All                                   | AWS credential                                   |
+| `AWS_SESSION_TOKEN`                 | All                                   | Academy session token (rotate each session)      |
+| `AWS_DEFAULT_REGION`                | All                                   | Default: `us-east-1`                             |
+| `S3_BUCKET`                         | All                                   | Bucket for uploads, parquet, models, predictions |
+| `SQS_QUEUE_CSV_UPLOAD_REQUESTED`    | Next.js upload API, ingest_consumer   | First queue in the pipeline                      |
+| `SQS_QUEUE_DATASET_UPLOADED`        | ingest_consumer, preprocess_consumer  | After ingest                                     |
+| `SQS_QUEUE_PREPROCESSING_DONE`      | preprocess_consumer, train_consumer   | After preprocessing                              |
+| `SQS_QUEUE_PREDICT_REQUESTED`       | Next.js predict API, predict_consumer | Trigger prediction                               |
+| `SQS_QUEUE_TRAINING_COMPLETE`       | train_consumer                        | Published after training                         |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Next.js client                        | Clerk publishable key                            |
+| `CLERK_SECRET_KEY`                  | Next.js server                        | Clerk secret key                                 |
+| `MODELS_DIR`                        | train_consumer, predict_consumer      | Local path inside container                      |
+| `PROCESSED_DIR`                     | preprocess_consumer, train_consumer   | Local path inside container                      |
 
 ---
 
@@ -358,6 +365,7 @@ Schema is applied automatically when postgres starts via `db/schema.sql`.
 Check `docker compose logs train_consumer`. If you see DB errors, verify `DATABASE_URL` in `.env` on EC2 points to the reachable postgres host.
 
 **`git pull` blocked by untracked files**
+
 ```bash
 sudo rm -rf processed/ models/ data/
 git clean -f messages/
@@ -366,6 +374,7 @@ git pull origin main
 
 **Consumers not picking up messages**
 AWS Academy credentials expire. Re-copy fresh credentials into `.env` on EC2 and restart consumers:
+
 ```bash
 docker compose up -d ingest_consumer preprocess_consumer train_consumer predict_consumer
 ```
