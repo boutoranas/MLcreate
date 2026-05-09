@@ -3,6 +3,12 @@ Group Members:
 - Anas Boutor, SID: 21010333, aboutor@connect.ust.hk
 - Almat Zhezbayev, SID: 20901779, azhezbayev@connect.ust.hk
 
+#Project report
+path: ./project_report.pdf
+
+#Demo video
+https://www.youtube.com/watch?v=J3K9IgFsh0Y
+
 # MLcreate
 
 A cloud-native ML pipeline: upload a CSV, train a model (XGBoost/linear, optionally distributed via Spark), and run predictions — all through a Next.js web UI backed by AWS SQS, S3, and PostgreSQL running on EC2.
